@@ -1,0 +1,3 @@
+[submodule "Bullet-HRL"]
+	path = Bullet-HRL
+	url = git@github.com:MihaiAnca13/Bullet-HRL.git
