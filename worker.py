@@ -8,8 +8,7 @@ from utils import make_env, Experience
 
 
 def spawn_processes(params, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
-    # set a start method for torch.multiprocessing and limit the number of threads started by OpenMP
-    # mp.set_start_method('spawn')
+    # limit the number of threads started by OpenMP
     os.environ['OMP_NUM_THREADS'] = "1"
 
     data_proc_list = []

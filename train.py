@@ -21,6 +21,7 @@ class SpawnCallback(Callback):
     def on_fit_start(self, trainer, pl_module):
         spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.shared_model, pl_module.state_normalizer,
                         pl_module.goal_normalizer, pl_module.log_dict)
+        print("Finished spawning workers")
 
 
 class HER(pl.LightningModule):
@@ -77,8 +78,7 @@ class HER(pl.LightningModule):
                               state_normalizer=self.state_normalizer, goal_normalizer=self.goal_normalizer)
         testloader = DataLoader(
             dataset=testset,
-            batch_size=1,
-            num_workers=0
+            batch_size=1
         )
 
         return testloader
@@ -126,12 +126,10 @@ class HER(pl.LightningModule):
             return actor_loss_v
 
     def validation_step(self, batch, batch_idx):
-        self.log_dict(batch)
+        self.log_dict(batch, prog_bar=True)
 
 
 if __name__ == '__main__':
-    mp.set_start_method('spawn')
-
     hparams = get_args()
 
     if hparams.debug:
@@ -143,5 +141,5 @@ if __name__ == '__main__':
     seed_everything(hparams.seed)
     her = HER(hparams)
     trainer = pl.Trainer.from_argparse_args(hparams)
-    trainer.callbacks = [SpawnCallback()]
+    trainer.callbacks.append(SpawnCallback())
     trainer.fit(her)
