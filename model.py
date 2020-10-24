@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from torch import optim
 from copy import deepcopy
-from utils import normalize_actions
 
 
 HID_SIZE = 256
@@ -25,15 +24,15 @@ class Actor(nn.Module):
             nn.Tanh()
         )
 
-        self.action_bounds = action_bounds
-        self.offset = offset
+        self.action_bounds = nn.Parameter(action_bounds)
+        self.offset = nn.Parameter(offset)
 
     def forward(self, state, goal):
         return (self.net(torch.cat([state, goal], dim=1)) * self.action_bounds) + self.offset
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_size, goal_size, act_size, action_bounds):
+    def __init__(self, obs_size, goal_size, act_size):
         super(Critic, self).__init__()
 
         self.net = nn.Sequential(
@@ -47,18 +46,16 @@ class Critic(nn.Module):
             # nn.Sigmoid()
         )
 
-        self.action_bounds = action_bounds
-
     def forward(self, state, goal, action):
-        return self.net(torch.cat([state, goal, normalize_actions(action, self.action_bounds)], dim=1))
+        return self.net(torch.cat([state, goal, action], dim=1))
 
 
 class Agent():
-    def __init__(self, net, action_bounds, random_eps, noise_eps):
+    def __init__(self, net, action_clips, random_eps, noise_eps):
         self.net = net
         self.random_eps = random_eps
         self.noise_eps = noise_eps
-        self.action_bounds = action_bounds
+        self.action_clips = action_clips
 
     def __call__(self, states, goals):
         mu_v = self.net(states, goals)
@@ -66,31 +63,32 @@ class Agent():
 
         for i in range(len(actions)):
             if np.random.random() < self.random_eps:
-                actions[i] = np.random.uniform(self.action_bounds[0], self.action_bounds[1])
+                actions[i] = np.random.uniform(self.action_clips[0], self.action_clips[1])
 
-        action_distribution_mean = (self.action_bounds[0] + self.action_bounds[1]) / 2
-        action_deviation = self.action_bounds[1] - action_distribution_mean
+        action_distribution_mean = (self.action_clips[0] + self.action_clips[1]) / 2
+        action_deviation = self.action_clips[1] - action_distribution_mean
         action_standard_deviation = action_deviation * 68 / 100
         actions += self.noise_eps * np.random.normal(action_distribution_mean, action_standard_deviation)
-        actions = np.clip(actions, self.action_bounds[0], self.action_bounds[1])
+        actions = np.clip(actions, self.action_clips[0], self.action_clips[1])
         return actions
 
     def test(self, states, goals):
         mu_v = self.net(states, goals)
         actions = mu_v.data.detach().cpu().numpy()
-        actions = np.clip(actions, self.action_bounds[0], self.action_bounds[1])
+        actions = np.clip(actions, self.action_clips[0], self.action_clips[1])
         return actions
 
 
-class DDPG():
-    def __init__(self, obs_size, goal_size, act_size, action_clips, action_bounds, action_offset, lr, random_eps, noise_eps):
+class DDPG(nn.Module):
+    def __init__(self, params, obs_size, goal_size, act_size, action_clips, action_bounds, action_offset):
+        super().__init__()
         self.actor = Actor(obs_size, goal_size, act_size, action_bounds, action_offset)
-        self.critic = Critic(obs_size, goal_size, act_size, action_clips)
-        self.agent = Agent(self.actor, action_clips, random_eps, noise_eps)
+        self.critic = Critic(obs_size, goal_size, act_size)
+        self.agent = Agent(self.actor, action_clips, params.random_eps, params.noise_eps)
         self.tgt_act_net = deepcopy(self.actor)
         self.tgt_crt_net = deepcopy(self.critic)
-        self.act_opt = optim.Adam(self.actor.parameters(), lr=lr)
-        self.crt_opt = optim.Adam(self.critic.parameters(), lr=lr)
+        self.act_opt = optim.Adam(self.actor.parameters(), lr=params.lr_actor)
+        self.crt_opt = optim.Adam(self.critic.parameters(), lr=params.lr_critic)
 
     def alpha_sync(self, alpha):
         assert isinstance(alpha, float)
@@ -108,15 +106,16 @@ class DDPG():
         self.tgt_crt_net.load_state_dict(tgt_state)
 
 
-class Shared_DDPG():
-    def __init__(self, actor, critic, action_clips, random_eps, noise_eps):
+class Shared_DDPG(nn.Module):
+    def __init__(self, params, actor, critic, action_clips):
+        super().__init__()
         self.actor = deepcopy(actor)
         self.critic = deepcopy(critic)
 
         self.actor.share_memory()
         self.critic.share_memory()
 
-        self.agent = Agent(self.actor, action_clips, random_eps, noise_eps)
+        self.agent = Agent(self.actor, action_clips, params.random_eps, params.noise_eps)
 
     def sync(self, ddpg):
         self.actor.load_state_dict(ddpg.tgt_act_net.target_model.state_dict())
