@@ -11,7 +11,7 @@ from torch.utils.data._utils import collate
 
 from arguments import get_args
 from buffer import RLDataset, SharedReplayBuffer, TestDataset
-from model import Shared_DDPG, DDPG
+from model import DDPG
 from normalizer import Normalizer
 from utils import make_env, get_env_boundaries
 from worker import spawn_processes
@@ -19,7 +19,7 @@ from worker import spawn_processes
 
 class SpawnCallback(Callback):
     def on_fit_start(self, trainer, pl_module):
-        spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.shared_model, pl_module.state_normalizer,
+        spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.model, pl_module.state_normalizer,
                         pl_module.goal_normalizer, pl_module.log_dict)
         print("Finished spawning workers")
 
@@ -47,8 +47,8 @@ class HER(pl.LightningModule):
                           action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
                           action_offset=action_offset)
 
-        self.shared_model = Shared_DDPG(params=self.hparams, actor=self.model.actor, critic=self.model.critic,
-                                        action_clips=(action_clip_low, action_clip_high))
+        self.model.actor.share_memory()
+        self.model.critic.share_memory()
 
         self.state_normalizer = Normalizer(state_shape, default_clip_range=self.hparams.clip_range)
         self.goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
@@ -91,15 +91,17 @@ class HER(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
+        norm_states_v = self.state_normalizer.normalize(states_v)
+        norm_goals_v = self.goal_normalizer.normalize(goals_v)
         if optimizer_idx == 0:
+            norm_next_states_v = self.state_normalizer.normalize(next_states_v)
             # train critic
-            self.model.crt_opt.zero_grad()
-            q_v = self.model.critic(states_v, goals_v, actions_v)
+            q_v = self.model.critic(norm_states_v, norm_goals_v, actions_v)
             with torch.no_grad():
                 next_act_v = self.model.tgt_act_net(
-                    next_states_v, goals_v)
+                    norm_next_states_v, norm_goals_v)
                 q_next_v = self.model.tgt_crt_net(
-                    next_states_v, goals_v, next_act_v)
+                    norm_next_states_v, norm_goals_v, next_act_v)
                 q_next_v[dones_mask] = 0.0
                 q_ref_v = rewards_v.unsqueeze(dim=-1) + q_next_v * self.hparams.gamma
                 # clip the q value
@@ -115,13 +117,15 @@ class HER(pl.LightningModule):
 
         elif optimizer_idx == 1:
             # train actor
-            self.model.act_opt.zero_grad()
-            cur_actions_v = self.model.actor(states_v, goals_v)
-            actor_loss_v = -self.model.critic(states_v, goals_v, cur_actions_v).mean()
+            cur_actions_v = self.model.actor(norm_states_v, norm_goals_v)
+            actor_loss_v = -self.model.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
             tqdm_dict = {
                 'actor_loss': actor_loss_v
             }
             self.log_dict(tqdm_dict, prog_bar=True)
+
+            if batch_idx % self.hparams.sync_batches == 0:
+                self.model.alpha_sync(self.hparams.polyak)
 
             return actor_loss_v
 

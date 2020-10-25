@@ -70,7 +70,8 @@ class Worker:
             norm_state = self.state_normalizer.normalize(state)
             norm_goal = self.goal_normalizer.normalize(goal)
 
-            action = self.model.agent(norm_state, norm_goal)[0]
+            with torch.no_grad():
+                action = self.model.agent(norm_state, norm_goal)[0]
 
             new_obs, reward, done, _ = self.env.step(action)
 
@@ -79,9 +80,20 @@ class Worker:
             obs = new_obs
 
     def create_her_transition(self, episode_transitions):
-        for (obs, action, reward, new_obs, done) in episode_transitions:
+        episode_obs = np.array(episode_transitions)
+        for idx, (obs, action, reward, new_obs, done) in enumerate(episode_obs):
             exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'], reward=reward,
                              done=done, goal=obs['desired_goal'])
             self.replay_buffer.append(exp)
 
-            # TODO: implement her transitions
+            # using future-k method
+            if (episode_obs.shape[0] - idx - 1) > 0:
+                future_offset = np.unique(np.random.choice(range(episode_obs.shape[0] - idx - 1), self.params.replay_k))
+                future_idx = future_offset + idx + 1
+                future_idx = future_idx.astype(int)
+
+                for future_o in episode_obs[future_idx][:, 0]:
+                    new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'], desired_goal=future_o['achieved_goal'], info=None)
+                    new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
+                                         reward=new_reward, done=False, goal=future_o['achieved_goal'])
+                    self.replay_buffer.append(new_exp)

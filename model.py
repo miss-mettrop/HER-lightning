@@ -104,19 +104,3 @@ class DDPG(nn.Module):
         for k, v in state.items():
             tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
         self.tgt_crt_net.load_state_dict(tgt_state)
-
-
-class Shared_DDPG(nn.Module):
-    def __init__(self, params, actor, critic, action_clips):
-        super().__init__()
-        self.actor = deepcopy(actor)
-        self.critic = deepcopy(critic)
-
-        self.actor.share_memory()
-        self.critic.share_memory()
-
-        self.agent = Agent(self.actor, action_clips, params.random_eps, params.noise_eps)
-
-    def sync(self, ddpg):
-        self.actor.load_state_dict(ddpg.tgt_act_net.target_model.state_dict())
-        self.critic.load_state_dict(ddpg.tgt_crt_net.target_model.state_dict())

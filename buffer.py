@@ -104,7 +104,7 @@ class TestDataset(IterableDataset):
                 norm_state = self.state_normalizer.normalize(state)
                 norm_goal = self.goal_normalizer.normalize(goal)
 
-                action = self.model.agent(norm_state, norm_goal)[0]
+                action = self.model.agent.test(norm_state, norm_goal)[0]
 
                 new_obs, reward, done, info = self.test_env.step(action)
 
