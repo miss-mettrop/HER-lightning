@@ -24,8 +24,8 @@ class Actor(nn.Module):
             nn.Tanh()
         )
 
-        self.action_bounds = nn.Parameter(action_bounds)
-        self.offset = nn.Parameter(offset)
+        self.action_bounds = nn.Parameter(action_bounds, requires_grad=False)
+        self.offset = nn.Parameter(offset, requires_grad=False)
 
     def forward(self, state, goal):
         return (self.net(torch.cat([state, goal], dim=1)) * self.action_bounds) + self.offset

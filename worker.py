@@ -18,18 +18,17 @@ def spawn_processes(params, replay_buffer, model, state_normalizer, goal_normali
         data_proc.start()
         data_proc_list.append(data_proc)
 
-    return data_proc_list
-
 
 def process_func(proc_idx, params, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
     env = make_env(params, proc_idx)
-    w = Worker(params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func)
+    w = Worker(proc_idx, params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func)
     print(f"Spawning worker with id: {proc_idx}")
     w.loop()
 
 
 class Worker:
-    def __init__(self, params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
+    def __init__(self, id, params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
+        self.id = id
         self.params = params
         self.env = env
         self.replay_buffer = replay_buffer
@@ -45,28 +44,39 @@ class Worker:
         goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
         norm_goal = self.goal_normalizer.normalize(goal)
         episode_transitions = []
+        episode_reward = 0
 
         state_shape = self.env.observation_space['observation'].sample().shape[0]
+        goal_shape = self.env.observation_space['achieved_goal'].sample().shape[0]
         new_states = np.zeros((self.params.max_timesteps, state_shape), dtype=np.float32)
+        new_goals = np.zeros((self.params.max_timesteps, goal_shape), dtype=np.float32)
         idx = 0
 
         while True:
             if done:
+                if self.log_func:
+                    self.log_func({f'{self.id}_episode_reward': episode_reward})
+                episode_reward = 0
+
                 self.state_normalizer.update(new_states)
                 self.state_normalizer.recompute_stats()
+                self.goal_normalizer.update(new_goals)
+
                 idx = 0
 
                 self.create_her_transition(episode_transitions)
                 episode_transitions = []
                 obs = self.env.reset()
                 goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
+                env_goals = torch.tensor([obs['desired_goal']] * self.params.max_timesteps).to(device)
 
-                self.goal_normalizer.update(goal)
+                self.goal_normalizer.update(env_goals)
                 self.goal_normalizer.recompute_stats()
 
                 norm_goal = self.goal_normalizer.normalize(goal)
 
             new_states[idx] = obs['observation']
+            new_goals[idx] = obs['achieved_goal']
             idx += 1
 
             state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
@@ -76,6 +86,7 @@ class Worker:
                 action = self.model.agent(norm_state, norm_goal)[0]
 
             new_obs, reward, done, _ = self.env.step(action)
+            episode_reward += reward
 
             episode_transitions.append((obs, action, reward, new_obs, done))
 

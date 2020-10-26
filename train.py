@@ -117,8 +117,12 @@ class HER(pl.LightningModule):
 
         elif optimizer_idx == 1:
             # train actor
+            self.model.actor.offset.requires_grad = False
+            self.model.actor.action_bounds.requires_grad = False
+
             cur_actions_v = self.model.actor(norm_states_v, norm_goals_v)
             actor_loss_v = -self.model.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
+            actor_loss_v += ((cur_actions_v - self.model.actor.offset) / self.model.actor.action_bounds).pow(2).mean()
             tqdm_dict = {
                 'actor_loss': actor_loss_v
             }
