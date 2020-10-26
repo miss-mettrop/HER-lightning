@@ -18,7 +18,7 @@ from worker import spawn_processes
 
 
 class SpawnCallback(Callback):
-    def on_fit_start(self, trainer, pl_module):
+    def on_train_start(self, trainer, pl_module):
         spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.model, pl_module.state_normalizer,
                         pl_module.goal_normalizer, pl_module.log_dict)
         print("Finished spawning workers")
@@ -134,6 +134,8 @@ class HER(pl.LightningModule):
 
 
 if __name__ == '__main__':
+    mp.set_start_method('spawn')
+
     hparams = get_args()
 
     if hparams.debug:

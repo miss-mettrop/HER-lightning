@@ -14,7 +14,7 @@ def get_args():
     parser.add_argument('--seed', type=int, default=123, help='random seed')
     parser.add_argument('--max-timesteps', type=int, default=50, help='max number of steps per episode')
     parser.add_argument('--np', type=int, default=4, help='the number of processes to collect samples')
-    parser.add_argument('--distributed_backend', type=str, default='ddp', help='the parallelisation method')
+    parser.add_argument('--distributed_backend', type=str, default='dp', help='the parallelisation method')
     parser.add_argument('--replay-strategy', type=str, default='future', help='the HER strategy')
     parser.add_argument('--save-dir', type=str, default='saved_models/', help='the path to save the models')
     parser.add_argument('--noise-eps', type=float, default=0.2, help='noise eps')
