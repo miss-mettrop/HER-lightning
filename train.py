@@ -34,26 +34,33 @@ class HER(pl.LightningModule):
         sample_obs = self.test_env.observation_space['observation'].sample()
         sample_goal = self.test_env.observation_space['achieved_goal'].sample()
 
-        # HARD CODED VALUES FOR Bullet-HRL
         action_limits, state_limits = get_env_boundaries()
         action_offset, action_bounds, action_clip_low, action_clip_high = action_limits
+        state_offset, state_bounds, state_clip_low, state_clip_high = state_limits
 
         state_shape = sample_obs.shape[0]
         action_shape = self.test_env.action_space.shape[0]
         goal_shape = sample_goal.shape[0]
         self.action_clips = (action_clip_low, action_clip_high)
 
-        self.model = DDPG(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
-                          action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
-                          action_offset=action_offset)
+        self.high_model = DDPG(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
+                               action_clips=(state_clip_low, state_clip_high), action_bounds=state_bounds,
+                               action_offset=state_offset)
+        self.low_model = DDPG(params=self.hparams, obs_size=action_shape, goal_size=action_shape, act_size=action_shape,
+                              action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
+                              action_offset=action_offset)
 
-        self.model.actor.share_memory()
-        self.model.critic.share_memory()
+        self.high_model.actor.share_memory()
+        self.high_model.critic.share_memory()
+        self.low_model.actor.share_memory()
+        self.low_model.critic.share_memory()
 
-        self.state_normalizer = Normalizer(state_shape, default_clip_range=self.hparams.clip_range)
-        self.goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
+        self.high_state_normalizer = Normalizer(state_shape, default_clip_range=self.hparams.clip_range)
+        self.low_state_normalizer = Normalizer(action_shape, default_clip_range=self.hparams.clip_range)
+        self.env_goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
-        self.replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, state_shape, action_shape, goal_shape)
+        self.low_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, action_shape, action_shape, action_shape)
+        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, state_shape, action_shape, goal_shape)
 
     def log_func(self, d):
         self.log_dict(d, on_step=True, prog_bar=True)
@@ -94,8 +101,8 @@ class HER(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
-        norm_states_v = self.state_normalizer.normalize(states_v)
-        norm_goals_v = self.goal_normalizer.normalize(goals_v)
+        norm_states_v = self.high_state_normalizer.normalize(states_v)
+        norm_goals_v = self.env_goal_normalizer.normalize(goals_v)
         if optimizer_idx == 0:
             norm_next_states_v = self.state_normalizer.normalize(next_states_v)
             # train critic
@@ -116,7 +123,7 @@ class HER(pl.LightningModule):
             }
             self.log_dict(tqdm_dict, prog_bar=True)
 
-            return critic_loss_v
+            # return critic_loss_v
 
         elif optimizer_idx == 1:
             # train actor
