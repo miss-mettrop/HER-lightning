@@ -20,7 +20,7 @@ from worker import spawn_processes
 class SpawnCallback(Callback):
     def on_train_start(self, trainer, pl_module):
         spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.model, pl_module.state_normalizer,
-                        pl_module.goal_normalizer, pl_module.log_dict)
+                        pl_module.goal_normalizer, pl_module.log_func)
         print("Finished spawning workers")
 
 
@@ -54,6 +54,9 @@ class HER(pl.LightningModule):
         self.goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
         self.replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, state_shape, action_shape, goal_shape)
+
+    def log_func(self, d):
+        self.log_dict(d, on_step=True, prog_bar=True)
 
     def collate_fn(self, batch):
         return collate.default_convert(batch)
