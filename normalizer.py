@@ -16,12 +16,6 @@ class Normalizer(nn.Module):
         # get the mean and std
         self.mean = nn.Parameter(torch.zeros(self.size, dtype=torch.float32), requires_grad=False)
         self.std = nn.Parameter(torch.ones(self.size, dtype=torch.float32), requires_grad=False)
-        # sync vars across processes
-        self.sum.share_memory_()
-        self.sumsq.share_memory_()
-        self.count.share_memory_()
-        self.mean.share_memory_()
-        self.std.share_memory_()
         # thread locker
         self.lock = mp.Lock()
 

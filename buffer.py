@@ -1,11 +1,14 @@
-import torch
-from torch.utils.data.dataset import IterableDataset
-import torch.multiprocessing as mp
 import numpy as np
-import time
+import torch
+import torch.multiprocessing as mp
+from torch.utils.data.dataset import IterableDataset
+
+from utils import make_env
+from worker import Worker
+
 
 class SharedReplayBuffer:
-    def __init__(self, buffer_size:int, state_shape, action_shape, goal_shape):
+    def __init__(self, buffer_size: int, state_shape, action_shape, goal_shape):
         self.count = torch.tensor([0], dtype=torch.int64)
         self.capacity = buffer_size
         self.pos = torch.tensor([0], dtype=torch.int64)
@@ -67,18 +70,39 @@ class SharedReplayBuffer:
 
 
 class RLDataset(IterableDataset):
-    def __init__(self, buffer, batch_size, n_batches, replay_initial):
+    def __init__(self, params, buffer, model, state_normalizer, goal_normalizer):
+        self.params = params
         self.buffer = buffer
-        self.batch_size = batch_size
-        self.n_batches = n_batches
-        self.replay_initial = replay_initial
+
+        env = make_env(params)
+        self.worker = Worker(0, params, env, self.buffer, model, state_normalizer, goal_normalizer)
+        self.env_generated = False
+
+        self.fill_buffer()
+
+    def fill_buffer(self):
+        for i in range(self.params.replay_initial // self.params.max_timesteps):
+            self.worker.play_episode()
 
     def __iter__(self):
-        while len(self.buffer) < self.replay_initial:
-            time.sleep(0.3)
+        if self.env_generated is False:
+            worker_info = torch.utils.data.get_worker_info()
+            if worker_info is not None:
+                proc_idx = worker_info.id
+                self.worker.id = proc_idx
+                self.worker.env = make_env(self.params, worker_info.seed)
+            else:
+                self.worker.env = make_env(self.params)
+            self.env_generated = True
 
-        for i in range(self.n_batches):
-            yield self.buffer.sample(self.batch_size)
+        for c in range(self.params.n_cycles):
+            ep_rewards = []
+            for i in range(self.params.ep_per_cycle // self.params.num_workers):
+                ep_reward = self.worker.play_episode()
+                ep_rewards.append(ep_reward)
+
+            for i in range(self.params.n_batches // self.params.num_workers):
+                yield (self.buffer.sample(self.params.batch_size), ep_rewards)
 
 class TestDataset(IterableDataset):
     def __init__(self, hparams, test_env, model, state_normalizer, goal_normalizer):

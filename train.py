@@ -1,27 +1,18 @@
 import pytorch_lightning as pl
 import torch
-import torch.multiprocessing as mp
 import torch.nn.functional as F
-from pytorch_lightning.callbacks import Callback
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_lightning.profiler import SimpleProfiler
 from pytorch_lightning.utilities.seed import seed_everything
 from torch.utils.data import DataLoader
 from torch.utils.data._utils import collate
+import torch.multiprocessing as mp
 
 from arguments import get_args
 from buffer import RLDataset, SharedReplayBuffer, TestDataset
 from model import DDPG
 from normalizer import Normalizer
 from utils import make_env, get_env_boundaries
-from worker import spawn_processes
-
-
-class SpawnCallback(Callback):
-    def on_train_start(self, trainer, pl_module):
-        spawn_processes(pl_module.hparams, pl_module.replay_buffer, pl_module.model, pl_module.state_normalizer,
-                        pl_module.goal_normalizer, pl_module.log_func)
-        print("Finished spawning workers")
 
 
 class HER(pl.LightningModule):
@@ -47,28 +38,22 @@ class HER(pl.LightningModule):
                           action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
                           action_offset=action_offset)
 
-        self.model.actor.share_memory()
-        self.model.critic.share_memory()
-
         self.state_normalizer = Normalizer(state_shape, default_clip_range=self.hparams.clip_range)
         self.goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
         self.replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, state_shape, action_shape, goal_shape)
 
-    def log_func(self, d):
-        self.log_dict(d, on_step=True, prog_bar=True)
-
     def collate_fn(self, batch):
         return collate.default_convert(batch)
 
     def __dataloader(self) -> DataLoader:
-        dataset = RLDataset(self.replay_buffer, self.hparams.batch_size, self.hparams.n_batches,
-                            self.hparams.replay_initial)
+        dataset = RLDataset(params=self.hparams, buffer=self.replay_buffer, model=self.model,
+                            state_normalizer=self.state_normalizer, goal_normalizer=self.goal_normalizer)
         dataloader = DataLoader(
             dataset=dataset,
             collate_fn=self.collate_fn,
             batch_size=1,
-            num_workers=1,
+            num_workers=self.hparams.num_workers,
             pin_memory=True
         )
         return dataloader
@@ -93,7 +78,11 @@ class HER(pl.LightningModule):
         return [self.model.crt_opt, self.model.act_opt], []
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
+        (states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v), ep_rewards = batch[0]
+
+        mean_ep_rewards = torch.tensor(ep_rewards, requires_grad=False, dtype=torch.float32).mean()
+        self.log_dict({'mean_ep_rewards': mean_ep_rewards})
+
         norm_states_v = self.state_normalizer.normalize(states_v)
         norm_goals_v = self.goal_normalizer.normalize(goals_v)
         if optimizer_idx == 0:
@@ -154,5 +143,4 @@ if __name__ == '__main__':
     seed_everything(hparams.seed)
     her = HER(hparams)
     trainer = pl.Trainer.from_argparse_args(hparams)
-    trainer.callbacks.append(SpawnCallback())
     trainer.fit(her)
