@@ -7,42 +7,49 @@ import torch.multiprocessing as mp
 from utils import make_env, Experience
 
 
-def spawn_processes(params, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
+def spawn_processes(params, high_replay_buffer, low_replay_buffer, model, high_state_normalizer, low_state_normalizer,
+                    env_goal_normalizer, log_func):
     # limit the number of threads started by OpenMP
     os.environ['OMP_NUM_THREADS'] = "1"
 
     data_proc_list = []
     for proc_idx in range(params.np):
-        p_args = (proc_idx, params, replay_buffer, model, state_normalizer, goal_normalizer, log_func)
+        p_args = (
+        proc_idx, params, high_replay_buffer, low_replay_buffer, model, high_state_normalizer, low_state_normalizer,
+        env_goal_normalizer, log_func)
         data_proc = mp.Process(target=process_func, args=p_args)
         data_proc.start()
         data_proc_list.append(data_proc)
 
 
-def process_func(proc_idx, params, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
+def process_func(proc_idx, params, high_replay_buffer, low_replay_buffer, model, high_state_normalizer,
+                 low_state_normalizer, env_goal_normalizer, log_func):
     env = make_env(params, proc_idx)
-    w = Worker(proc_idx, params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func)
+    w = Worker(proc_idx, params, env, high_replay_buffer, low_replay_buffer, model, high_state_normalizer,
+               low_state_normalizer, env_goal_normalizer, log_func)
     print(f"Spawning worker with id: {proc_idx}")
     w.loop()
 
 
 class Worker:
-    def __init__(self, id, params, env, replay_buffer, model, state_normalizer, goal_normalizer, log_func):
+    def __init__(self, id, params, env, high_replay_buffer, low_replay_buffer, model, high_state_normalizer,
+                 low_state_normalizer, env_goal_normalizer, log_func):
         self.id = id
         self.params = params
         self.env = env
-        self.replay_buffer = replay_buffer
+        self.high_replay_buffer = high_replay_buffer
+        self.low_replay_buffer = low_replay_buffer
         self.model = model
-        self.state_normalizer = state_normalizer
-        self.goal_normalizer = goal_normalizer
+        self.high_state_normalizer = high_state_normalizer
+        self.low_state_normalizer = low_state_normalizer
+        self.env_goal_normalizer = env_goal_normalizer
         self.log_func = log_func
 
     def loop(self):
         device = next(self.model.actor.parameters()).device
-        done = False
         obs = self.env.reset()
         goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
-        norm_goal = self.goal_normalizer.normalize(goal)
+        norm_goal = self.env_goal_normalizer.normalize(goal)
         episode_transitions = []
         episode_reward = 0
 
@@ -53,6 +60,23 @@ class Worker:
         idx = 0
 
         while True:
+            new_states[idx] = obs['observation']
+            new_goals[idx] = obs['achieved_goal']
+            idx += 1
+
+            state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
+            norm_state = self.state_normalizer.normalize(state)
+
+            with torch.no_grad():
+                action = self.model.agent(norm_state, norm_goal)[0]
+
+            new_obs, reward, done, _ = self.env.step(action)
+            episode_reward += reward
+
+            episode_transitions.append((obs, action, reward, new_obs, done))
+
+            obs = new_obs
+
             if done:
                 if self.log_func:
                     self.log_func({f'{self.id}_episode_reward': episode_reward})
@@ -74,23 +98,6 @@ class Worker:
                 self.goal_normalizer.recompute_stats()
 
                 norm_goal = self.goal_normalizer.normalize(goal)
-
-            new_states[idx] = obs['observation']
-            new_goals[idx] = obs['achieved_goal']
-            idx += 1
-
-            state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
-            norm_state = self.state_normalizer.normalize(state)
-
-            with torch.no_grad():
-                action = self.model.agent(norm_state, norm_goal)[0]
-
-            new_obs, reward, done, _ = self.env.step(action)
-            episode_reward += reward
-
-            episode_transitions.append((obs, action, reward, new_obs, done))
-
-            obs = new_obs
 
     def create_her_transition(self, episode_transitions):
         episode_obs = np.array(episode_transitions)

@@ -8,6 +8,7 @@ def get_args():
     parser.add_argument('--debug', type=bool, default=False, help='debugging mode')
     parser.add_argument('--project', type=str, default="her-pl", help='the project name')
     parser.add_argument('--gpus', type=int, default=1, help='the number of gpus to train on')
+    parser.add_argument('--H', type=int, default=10, help='the number of low level steps per high level target')
     parser.add_argument('--max-epochs', type=int, default=1000, help='the number of epochs to train the agent')
     parser.add_argument('--n-batches', type=int, default=2000, help='the times to update the network per epoch')
     parser.add_argument('--sync-batches', type=int, default=40, help='freq (batches) at which to update the target networks')

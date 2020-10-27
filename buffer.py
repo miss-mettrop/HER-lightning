@@ -67,18 +67,19 @@ class SharedReplayBuffer:
 
 
 class RLDataset(IterableDataset):
-    def __init__(self, buffer, batch_size, n_batches, replay_initial):
-        self.buffer = buffer
+    def __init__(self, buffers, batch_size, n_batches, replay_initial):
+        self.buffers = buffers
         self.batch_size = batch_size
         self.n_batches = n_batches
         self.replay_initial = replay_initial
 
     def __iter__(self):
-        while len(self.buffer) < self.replay_initial:
+        while len(self.buffers[-1]) < self.replay_initial:
             time.sleep(0.3)
 
         for i in range(self.n_batches):
-            yield self.buffer.sample(self.batch_size)
+            for i in range(len(self.buffers)):
+                yield self.buffers[i].sample(self.batch_size)
 
 class TestDataset(IterableDataset):
     def __init__(self, hparams, test_env, model, state_normalizer, goal_normalizer):
