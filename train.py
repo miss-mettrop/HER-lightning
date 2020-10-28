@@ -19,7 +19,8 @@ from worker import spawn_processes
 
 class SpawnCallback(Callback):
     def on_train_start(self, trainer, pl_module):
-        spawn_processes(pl_module.hparams, pl_module.high_replay_buffer, pl_module.low_replay_buffer, pl_module.model, pl_module.high_state_normalizer,
+        spawn_processes(pl_module.hparams, pl_module.high_replay_buffer, pl_module.low_replay_buffer,
+                        pl_module.high_model, pl_module.low_model, pl_module.high_state_normalizer,
                         pl_module.low_state_normalizer, pl_module.env_goal_normalizer, pl_module.log_func)
         print("Finished spawning workers")
 
@@ -71,8 +72,8 @@ class HER(pl.LightningModule):
         return collate.default_convert(batch)
 
     def __dataloader(self) -> DataLoader:
-        dataset = RLDataset(self.replay_buffer, self.hparams.batch_size, self.hparams.n_batches,
-                            self.hparams.replay_initial)
+        dataset = RLDataset([self.low_replay_buffer, self.high_replay_buffer], self.hparams.batch_size,
+                            self.hparams.n_batches, self.hparams.replay_initial)
         dataloader = DataLoader(
             dataset=dataset,
             collate_fn=self.collate_fn,
@@ -86,8 +87,10 @@ class HER(pl.LightningModule):
         return self.__dataloader()
 
     def __testloader(self):
-        testset = TestDataset(hparams=self.hparams, test_env=self.test_env, model=self.model,
-                              state_normalizer=self.state_normalizer, goal_normalizer=self.goal_normalizer)
+        testset = TestDataset(hparams=self.hparams, test_env=self.test_env, high_model=self.high_model,
+                              low_model=self.low_model, high_state_normalizer=self.high_state_normalizer,
+                              low_state_normalizer=self.low_state_normalizer,
+                              env_goal_normalizer=self.env_goal_normalizer)
         testloader = DataLoader(
             dataset=testset,
             batch_size=1

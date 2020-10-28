@@ -1,11 +1,15 @@
-import torch
-from torch.utils.data.dataset import IterableDataset
-import torch.multiprocessing as mp
-import numpy as np
 import time
 
+import numpy as np
+import torch
+import torch.multiprocessing as mp
+from torch.utils.data.dataset import IterableDataset
+
+from worker import LOW_STATE_IDX
+
+
 class SharedReplayBuffer:
-    def __init__(self, buffer_size:int, state_shape, action_shape, goal_shape):
+    def __init__(self, buffer_size: int, state_shape, action_shape, goal_shape):
         self.count = torch.tensor([0], dtype=torch.int64)
         self.capacity = buffer_size
         self.pos = torch.tensor([0], dtype=torch.int64)
@@ -81,35 +85,52 @@ class RLDataset(IterableDataset):
             for i in range(len(self.buffers)):
                 yield self.buffers[i].sample(self.batch_size)
 
+
 class TestDataset(IterableDataset):
-    def __init__(self, hparams, test_env, model, state_normalizer, goal_normalizer):
+    def __init__(self, hparams, test_env, high_model, low_model, high_state_normalizer, low_state_normalizer,
+                 env_goal_normalizer):
         self.hparams = hparams
         self.test_env = test_env
-        self.model = model
-        self.state_normalizer = state_normalizer
-        self.goal_normalizer = goal_normalizer
+        self.high_model = high_model
+        self.low_model = low_model
+        self.high_state_normalizer = high_state_normalizer
+        self.low_state_normalizer = low_state_normalizer
+        self.env_goal_normalizer = env_goal_normalizer
 
     @torch.no_grad()
     def __iter__(self):
         total_reward = 0.0
         accuracy = 0.0
-        device = next(self.model.actor.parameters()).device
+        device = next(self.high_model.actor.parameters()).device
 
         for _ in range(self.hparams.n_test_rollouts):
             goal_reached_this_round = False
             obs = self.test_env.reset()
             goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
+            norm_goal = self.env_goal_normalizer.normalize(goal)
 
             while True:
                 state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
-                norm_state = self.state_normalizer.normalize(state)
-                norm_goal = self.goal_normalizer.normalize(goal)
+                norm_state = self.high_state_normalizer.normalize(state)
 
-                action = self.model.agent.test(norm_state, norm_goal)[0]
+                target_np = self.high_model.agent.test(norm_state, norm_goal)[0]
+                target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
+                norm_target = self.low_state_normalizer.normalize(target)
 
-                new_obs, reward, done, info = self.test_env.step(action)
+                for i in range(self.hparams.H):
+                    low_state = torch.from_numpy(obs['observation'][LOW_STATE_IDX]).float().unsqueeze(0).to(device)
+                    norm_low_state = self.low_state_normalizer.normalize(low_state)
 
-                total_reward += reward
+                    self.test_env.update_markers(target)
+                    action = self.low_model.agent.test(norm_low_state, norm_target)[0]
+                    new_obs, reward, done, info = self.test_env.step(action)
+
+                    total_reward += reward
+
+                    if done or info['is_success']:
+                        break
+
+                    obs = new_obs
 
                 if info['is_success']:
                     if not goal_reached_this_round:
@@ -118,8 +139,6 @@ class TestDataset(IterableDataset):
 
                 if done:
                     break
-
-                obs = new_obs
 
         tqdm_dict = {
             'test_mean_reward': total_reward / self.hparams.n_test_rollouts,
