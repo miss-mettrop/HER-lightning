@@ -82,8 +82,8 @@ class RLDataset(IterableDataset):
             time.sleep(0.3)
 
         for i in range(self.n_batches):
-            for i in range(len(self.buffers)):
-                yield self.buffers[i].sample(self.batch_size)
+            for j in range(len(self.buffers)):
+                yield self.buffers[j].sample(self.batch_size)
 
 
 class TestDataset(IterableDataset):
@@ -114,6 +114,7 @@ class TestDataset(IterableDataset):
                 norm_state = self.high_state_normalizer.normalize(state)
 
                 target_np = self.high_model.agent.test(norm_state, norm_goal)[0]
+                self.test_env.update_markers(target_np)
                 target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
                 norm_target = self.low_state_normalizer.normalize(target)
 
@@ -121,7 +122,6 @@ class TestDataset(IterableDataset):
                     low_state = torch.from_numpy(obs['observation'][LOW_STATE_IDX]).float().unsqueeze(0).to(device)
                     norm_low_state = self.low_state_normalizer.normalize(low_state)
 
-                    self.test_env.update_markers(target)
                     action = self.low_model.agent.test(norm_low_state, norm_target)[0]
                     new_obs, reward, done, info = self.test_env.step(action)
 

@@ -10,8 +10,7 @@ LOW_STATE_IDX = [0, 1, 2, 9]
 
 
 def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                    low_state_normalizer,
-                    env_goal_normalizer, log_func):
+                    low_state_normalizer, env_goal_normalizer, log_result):
     # limit the number of threads started by OpenMP
     os.environ['OMP_NUM_THREADS'] = "1"
 
@@ -19,24 +18,24 @@ def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, l
     for proc_idx in range(params.np):
         p_args = (
             proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-            low_state_normalizer, env_goal_normalizer, log_func)
+            low_state_normalizer, env_goal_normalizer, log_result)
         data_proc = mp.Process(target=process_func, args=p_args)
         data_proc.start()
         data_proc_list.append(data_proc)
 
 
 def process_func(proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                 low_state_normalizer, env_goal_normalizer, log_func):
+                 low_state_normalizer, env_goal_normalizer, log_result):
     env = make_env(params, proc_idx)
     w = Worker(proc_idx, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_func)
+               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result)
     print(f"Spawning worker with id: {proc_idx}")
     w.loop()
 
 
 class Worker:
     def __init__(self, wid, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_func):
+                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result):
         self.wid = wid
         self.params = params
         self.env = env
@@ -46,7 +45,7 @@ class Worker:
         self.high_state_normalizer = high_state_normalizer
         self.low_state_normalizer = low_state_normalizer
         self.env_goal_normalizer = env_goal_normalizer
-        self.log_func = log_func
+        self.log_result = log_result
 
     def loop(self):
         assert self.params.H > 0
@@ -127,8 +126,7 @@ class Worker:
             episode_high_transitions.append((high_obs, low_obs['achieved_goal'], r, new_obs, done))
 
             if done:
-                if self.log_func:
-                    self.log_func({f'{self.wid}_episode_reward': episode_reward})
+                self.log_result(episode_reward)
                 episode_reward = 0
 
                 self.high_state_normalizer.update(new_high_states)
@@ -175,7 +173,14 @@ class Worker:
                             info = {'thresholds': np.append(self.env.thresholds, 0.003)}
                     else:
                         info = None
-                    new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'], desired_goal=future_o['achieved_goal'], info=info)
+
+                    # check for rewarding random movements when the object hasn't moved
+                    # if high level is on goal, the reward would come from the env
+                    if level == 1 and obs['achieved_goal'].all() == new_obs['achieved_goal'].all() == future_o['achieved_goal'].all():
+                        continue
+
+                    new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
+                                                         desired_goal=future_o['achieved_goal'], info=info)
                     new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
                                          reward=new_reward, done=False, goal=future_o['achieved_goal'])
                     self.replay_buffers[level].append(new_exp)
