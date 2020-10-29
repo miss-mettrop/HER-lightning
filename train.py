@@ -117,7 +117,7 @@ class HER(pl.LightningModule):
             with self.lock:
                 if len(self.shared_log_list) > 0:
                     mean_ep_reward = torch.tensor(self.shared_log_list).float().mean()
-                    self.log_dict({'mean_ep_reward': mean_ep_reward}, prog_bar=True)
+                    self.log_dict({'mean_ep_reward': mean_ep_reward}, prog_bar=True, on_step=True)
                     self.shared_log_list[:] = []
 
         states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
@@ -156,7 +156,7 @@ class HER(pl.LightningModule):
             tqdm_dict = {
                 f'{level}_critic_loss': critic_loss_v
             }
-            self.log_dict(tqdm_dict, prog_bar=True)
+            self.log_dict(tqdm_dict, prog_bar=True, on_step=True)
 
             return critic_loss_v
 
@@ -172,7 +172,7 @@ class HER(pl.LightningModule):
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
             }
-            self.log_dict(tqdm_dict, prog_bar=True)
+            self.log_dict(tqdm_dict, prog_bar=True, on_step=True)
 
             if batch_idx % self.hparams.sync_batches == 0:
                 net.alpha_sync(self.hparams.polyak)

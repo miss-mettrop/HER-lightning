@@ -176,7 +176,8 @@ class Worker:
 
                     # check for rewarding random movements when the object hasn't moved
                     # if high level is on goal, the reward would come from the env
-                    if level == 1 and obs['achieved_goal'].all() == new_obs['achieved_goal'].all() == future_o['achieved_goal'].all():
+                    if level == 1 and np.array_equal(obs['achieved_goal'], new_obs['achieved_goal']) and np.array_equal(
+                            new_obs['achieved_goal'], future_o['achieved_goal']):
                         continue
 
                     new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
