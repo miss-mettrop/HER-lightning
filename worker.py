@@ -174,11 +174,11 @@ class Worker:
                     else:
                         info = None
 
-            # check for rewarding random movements when the object hasn't moved
-            # if high level is on goal, the reward would come from the env
-            if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
-                    and self.env.env._is_success(new_obs['achieved_goal'], final_obs['achieved_goal']):
-                continue
+                    # check for rewarding random movements when the object hasn't moved
+                    # if high level is on goal, the reward would come from the env
+                    if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
+                            and self.env.env._is_success(new_obs['achieved_goal'], future_o['achieved_goal']):
+                        continue
 
                     new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                          desired_goal=future_o['achieved_goal'], info=info)
