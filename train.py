@@ -112,6 +112,10 @@ class HER(pl.LightningModule):
         return [self.high_model.crt_opt, self.high_model.act_opt, self.low_model.crt_opt, self.low_model.act_opt], []
 
     def training_step(self, batch, batch_idx, optimizer_idx):
+        if batch_idx % self.hparams.sync_batches == 0:
+            self.high_model.alpha_sync(self.hparams.polyak)
+            self.low_model.alpha_sync(self.hparams.polyak)
+
         # log this once per train step
         if optimizer_idx == 3:
             with self.lock:
@@ -173,9 +177,6 @@ class HER(pl.LightningModule):
                 f'{level}_actor_loss': actor_loss_v
             }
             self.log_dict(tqdm_dict, prog_bar=True, on_step=True)
-
-            if batch_idx % self.hparams.sync_batches == 0:
-                net.alpha_sync(self.hparams.polyak)
 
             return actor_loss_v
 
