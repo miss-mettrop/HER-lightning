@@ -142,6 +142,6 @@ class TestDataset(IterableDataset):
 
         tqdm_dict = {
             'test_mean_reward': total_reward / self.hparams.n_test_rollouts,
-            'accuracy': accuracy / self.hparams.n_test_rollouts
+            'test_accuracy': accuracy / self.hparams.n_test_rollouts
         }
         yield tqdm_dict

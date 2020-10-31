@@ -22,7 +22,7 @@ def get_args():
     parser.add_argument('--random-eps', type=float, default=0.3, help='random eps')
     parser.add_argument('--buffer-size', type=int, default=int(1e6), help='the size of the buffer')
     parser.add_argument('--replay-initial', type=int, default=int(1e3), help='the required initial size of the buffer')
-    parser.add_argument('--replay-k', type=int, default=4, help='ratio to be replace')
+    parser.add_argument('--replay-k', type=int, default=4, help='number of HER transitions for the future method')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     parser.add_argument('--gamma', type=float, default=0.98, help='the discount factor')
     parser.add_argument('--lr-actor', type=float, default=0.001, help='the learning rate of the actor')

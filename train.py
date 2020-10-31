@@ -1,5 +1,6 @@
 from multiprocessing import Manager, Lock
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.multiprocessing as mp
@@ -74,9 +75,10 @@ class HER(pl.LightningModule):
     def collate_fn(self, batch):
         return collate.default_convert(batch)
 
-    def log_result(self, result):
+    def log_result(self, episode_result, accuracy):
+        to_log = np.array([episode_result, np.array(accuracy[0]), np.array(accuracy[1])])
         with self.lock:
-            self.shared_log_list.append(result)
+            self.shared_log_list.append(to_log)
 
     def __dataloader(self) -> DataLoader:
         dataset = RLDataset([self.low_replay_buffer, self.high_replay_buffer], self.hparams.batch_size,
@@ -112,16 +114,22 @@ class HER(pl.LightningModule):
         return [self.high_model.crt_opt, self.high_model.act_opt, self.low_model.crt_opt, self.low_model.act_opt], []
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        if batch_idx % self.hparams.sync_batches == 0:
+        if batch_idx % self.hparams.sync_batches == 0 and optimizer_idx == 0:
             self.high_model.alpha_sync(self.hparams.polyak)
             self.low_model.alpha_sync(self.hparams.polyak)
 
         # log this once per train step
         if optimizer_idx == 3:
             with self.lock:
-                if len(self.shared_log_list) > 0:
-                    mean_ep_reward = torch.tensor(self.shared_log_list).float().mean()
+                if len(self.shared_log_list) > 50:
+                    log_list = np.array(self.shared_log_list)
+                    mean_ep_reward = torch.tensor(np.array(log_list[:, 0], dtype=np.float32)).mean()
+                    low_accuracy = torch.tensor(np.concatenate(log_list[:, 1]).flatten()).float().mean()
+                    high_accuracy = torch.tensor(np.concatenate(log_list[:, 2]).flatten()).float().mean()
+                    a = torch.tensor(np.concatenate(log_list[:, 2]).flatten())
                     self.log_dict({'mean_ep_reward': mean_ep_reward}, prog_bar=True, on_step=True)
+                    self.log_dict({'low_accuracy': low_accuracy}, prog_bar=True, on_step=True)
+                    self.log_dict({'high_accuracy': high_accuracy}, prog_bar=True, on_step=True)
                     self.shared_log_list[:] = []
 
         states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]

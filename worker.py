@@ -66,6 +66,9 @@ class Worker:
         new_env_goals = np.zeros((self.params.max_timesteps // self.params.H, goal_shape), dtype=np.float32)
         idx = 0
 
+        accuracy = [[], []]
+        goal_reached = False
+
         while True:
             new_high_states[idx // self.params.H] = obs['observation']
             new_env_goals[idx // self.params.H] = obs['achieved_goal']
@@ -79,6 +82,7 @@ class Worker:
                 target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
             norm_target = self.low_state_normalizer.normalize(target)
 
+            target_reached = False
             for i in range(self.params.H):
                 new_low_states[idx] = obs['observation'][LOW_STATE_IDX]
                 idx += 1
@@ -113,6 +117,7 @@ class Worker:
                 r = self.env.compute_reward(achieved_goal=low_obs['achieved_goal'],
                                             desired_goal=low_obs['desired_goal'],
                                             info={'thresholds': low_level_thresholds})
+                target_reached = (True if r == 0 else False) or target_reached
 
                 # test whether done should be set to True when target achieved or on last H loop
                 episode_low_transitions.append((low_obs, action, r, new_low_obs, done))
@@ -122,12 +127,19 @@ class Worker:
                 if done or info['is_success']:
                     break
 
+            accuracy[0].append(1 if target_reached else 0)
+            goal_reached = (True if info['is_success'] else False) or goal_reached
+
             r = 0 if info['is_success'] else -1
             episode_high_transitions.append((high_obs, low_obs['achieved_goal'], r, new_obs, done))
 
             if done:
-                self.log_result(episode_reward)
+                accuracy[1].append(1 if goal_reached else 0)
+
+                self.log_result(episode_reward, accuracy)
                 episode_reward = 0
+                goal_reached = False
+                accuracy = [[], []]
 
                 self.high_state_normalizer.update(new_high_states)
                 self.high_state_normalizer.recompute_stats()
