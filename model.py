@@ -1,11 +1,11 @@
+from copy import deepcopy
+
 import numpy as np
 import torch
 import torch.nn as nn
 from torch import optim
-from copy import deepcopy
 
-
-HID_SIZE = 256
+HID_SIZE = 64
 
 
 class Actor(nn.Module):
@@ -32,7 +32,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, obs_size, goal_size, act_size):
+    def __init__(self, obs_size, goal_size, act_size, H):
         super(Critic, self).__init__()
 
         self.net = nn.Sequential(
@@ -43,11 +43,13 @@ class Critic(nn.Module):
             nn.Linear(HID_SIZE, HID_SIZE),
             nn.ReLU(),
             nn.Linear(HID_SIZE, 1),
-            # nn.Sigmoid()
+            nn.Sigmoid()
         )
 
+        self.H = nn.Parameter(torch.tensor(H, dtype=torch.float32, requires_grad=False), requires_grad=False)
+
     def forward(self, state, goal, action):
-        return self.net(torch.cat([state, goal, action], dim=1))
+        return -self.net(torch.cat([state, goal, action], dim=1)) * self.H
 
 
 class Agent():
@@ -83,7 +85,7 @@ class DDPG(nn.Module):
     def __init__(self, params, obs_size, goal_size, act_size, action_clips, action_bounds, action_offset):
         super().__init__()
         self.actor = Actor(obs_size, goal_size, act_size, action_bounds, action_offset)
-        self.critic = Critic(obs_size, goal_size, act_size)
+        self.critic = Critic(obs_size, goal_size, act_size, params.H)
         self.agent = Agent(self.actor, action_clips, params.random_eps, params.noise_eps)
         self.tgt_act_net = deepcopy(self.actor)
         self.tgt_crt_net = deepcopy(self.critic)

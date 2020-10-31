@@ -126,7 +126,6 @@ class HER(pl.LightningModule):
                     mean_ep_reward = torch.tensor(np.array(log_list[:, 0], dtype=np.float32)).mean()
                     low_accuracy = torch.tensor(np.concatenate(log_list[:, 1]).flatten()).float().mean()
                     high_accuracy = torch.tensor(np.concatenate(log_list[:, 2]).flatten()).float().mean()
-                    a = torch.tensor(np.concatenate(log_list[:, 2]).flatten())
                     self.log_dict({'mean_ep_reward': mean_ep_reward}, prog_bar=True, on_step=True)
                     self.log_dict({'low_accuracy': low_accuracy}, prog_bar=True, on_step=True)
                     self.log_dict({'high_accuracy': high_accuracy}, prog_bar=True, on_step=True)
@@ -150,6 +149,7 @@ class HER(pl.LightningModule):
         norm_states_v = state_normalizer.normalize(states_v)
         norm_goals_v = goal_normalizer.normalize(goals_v)
         if optimizer_idx % 2 == 0:
+            net.critic.H.requires_grad = False
             norm_next_states_v = state_normalizer.normalize(next_states_v)
             # train critic
             q_v = net.critic(norm_states_v, norm_goals_v, actions_v)
@@ -160,9 +160,6 @@ class HER(pl.LightningModule):
                     norm_next_states_v, norm_goals_v, next_act_v)
                 q_next_v[dones_mask] = 0.0
                 q_ref_v = rewards_v.unsqueeze(dim=-1) + q_next_v * self.hparams.gamma
-                # clip the q value
-                clip_return = 1 / (1 - self.hparams.gamma)
-                q_ref_v = torch.clamp(q_ref_v, -clip_return, 0)
             critic_loss_v = F.mse_loss(q_v, q_ref_v.detach())
 
             tqdm_dict = {
@@ -179,7 +176,6 @@ class HER(pl.LightningModule):
 
             cur_actions_v = net.actor(norm_states_v, norm_goals_v)
             actor_loss_v = -net.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
-            actor_loss_v += ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
@@ -189,7 +185,7 @@ class HER(pl.LightningModule):
             return actor_loss_v
 
     def validation_step(self, batch, batch_idx):
-        self.log_dict(batch, prog_bar=True)
+        self.log_dict(batch, prog_bar=False)
 
 
 if __name__ == '__main__':
