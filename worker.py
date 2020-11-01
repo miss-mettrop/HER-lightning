@@ -131,17 +131,17 @@ class Worker:
 
                 obs = new_obs
 
-                if done or info['is_success'] or target_reached:
+                if done or info['is_success']: # or target_reached:
                     break
 
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                if is_subgoal_test:
-                    exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                               reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                    self.replay_buffers[1].append(exp)
+                # if is_subgoal_test:
+                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
+                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
+                #     self.replay_buffers[1].append(exp)
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
@@ -201,14 +201,22 @@ class Worker:
                 else:
                     info = None
 
+                # check for rewarding random movements when the object hasn't moved
+                # if high level is on goal, the reward would come from the env
+                if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
+                        and self.env.env._is_success(obs['achieved_goal'], final_o['achieved_goal']):
+                    continue
+
                 new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                      desired_goal=final_o['achieved_goal'], info=info)
-                if new_reward == 0:
-                    new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                     reward=new_reward, done=True, goal=final_o['achieved_goal'])
-                else:
-                    new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                     reward=new_reward, done=done, goal=final_o['achieved_goal'])
+
+                new_done = done
+                if new_reward == 0 and level == 1:
+                    new_reward = True
+
+                new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
+                                     reward=new_reward, done=new_done, goal=final_o['achieved_goal'])
+
                 self.replay_buffers[level].append(new_exp)
 
             elif self.params.replay_strategy == 'future':
@@ -229,7 +237,7 @@ class Worker:
                         # check for rewarding random movements when the object hasn't moved
                         # if high level is on goal, the reward would come from the env
                         if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
-                                and self.env.env._is_success(new_obs['achieved_goal'], future_o['achieved_goal']):
+                                and self.env.env._is_success(obs['achieved_goal'], future_o['achieved_goal']):
                             continue
 
                         new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
