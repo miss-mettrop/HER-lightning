@@ -185,6 +185,7 @@ class Worker:
 
     def create_her_transition(self, episode_transitions, level):
         episode_obs = np.array(episode_transitions)
+        transitions = []
         for idx, (obs, action, reward, new_obs, done) in enumerate(episode_obs):
             exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'], reward=reward,
                              done=done, goal=obs['desired_goal'])
@@ -217,7 +218,7 @@ class Worker:
                 new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
                                      reward=new_reward, done=new_done, goal=final_o['achieved_goal'])
 
-                self.replay_buffers[level].append(new_exp)
+                transitions.append(new_exp)
 
             elif self.params.replay_strategy == 'future':
                 if (episode_obs.shape[0] - idx - 1) > 0:
@@ -242,6 +243,15 @@ class Worker:
 
                         new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                              desired_goal=future_o['achieved_goal'], info=info)
+
+                        new_done = done
+                        if new_reward == 0 and level == 1:
+                            new_done = True
+
                         new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                             reward=new_reward, done=done, goal=future_o['achieved_goal'])
-                        self.replay_buffers[level].append(new_exp)
+                                             reward=new_reward, done=new_done, goal=future_o['achieved_goal'])
+                        transitions.append(new_exp)
+
+        if len(transitions) > 1:
+            for t in transitions:
+                self.replay_buffers[level].append(t)

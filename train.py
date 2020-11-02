@@ -14,7 +14,7 @@ from torch.utils.data._utils import collate
 
 from arguments import get_args
 from buffer import RLDataset, SharedReplayBuffer, TestDataset
-from model import DDPG
+from model import TD3
 from normalizer import Normalizer
 from utils import make_env, get_env_boundaries
 from worker import spawn_processes
@@ -49,10 +49,10 @@ class HER(pl.LightningModule):
         self.hl_state_shape = state_shape
         self.ll_state_shape = action_shape
 
-        self.high_model = DDPG(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
+        self.high_model = TD3(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
                                action_clips=(state_clip_low, state_clip_high), action_bounds=state_bounds,
                                action_offset=state_offset)
-        self.low_model = DDPG(params=self.hparams, obs_size=action_shape, goal_size=action_shape, act_size=action_shape,
+        self.low_model = TD3(params=self.hparams, obs_size=action_shape, goal_size=action_shape, act_size=action_shape,
                               action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
                               action_offset=action_offset)
 
@@ -114,7 +114,8 @@ class HER(pl.LightningModule):
         return [self.high_model.crt_opt, self.high_model.act_opt, self.low_model.crt_opt, self.low_model.act_opt], []
 
     def training_step(self, batch, batch_idx, optimizer_idx):
-        if batch_idx % self.hparams.sync_batches == 0 and optimizer_idx == 0:
+        idx = batch_idx // 2
+        if optimizer_idx == 0 and idx % self.hparams.policy_freq == 0:
             self.high_model.alpha_sync(self.hparams.polyak)
             self.low_model.alpha_sync(self.hparams.polyak)
 
@@ -149,18 +150,19 @@ class HER(pl.LightningModule):
         norm_states_v = state_normalizer.normalize(states_v)
         norm_goals_v = goal_normalizer.normalize(goals_v)
         if optimizer_idx % 2 == 0:
+            # train critic
             net.critic.H.requires_grad = False
             norm_next_states_v = state_normalizer.normalize(next_states_v)
-            # train critic
-            q_v = net.critic(norm_states_v, norm_goals_v, actions_v)
+
+            current_Q1, current_Q2 = net.critic(norm_states_v, norm_goals_v, actions_v)
             with torch.no_grad():
-                next_act_v = net.tgt_act_net(
-                    norm_next_states_v, norm_goals_v)
-                q_next_v = net.tgt_crt_net(
-                    norm_next_states_v, norm_goals_v, next_act_v)
-                q_next_v[dones_mask] = 0.0
-                q_ref_v = rewards_v.unsqueeze(dim=-1) + q_next_v * self.hparams.gamma
-            critic_loss_v = F.mse_loss(q_v, q_ref_v.detach())
+                next_act_v = net.agent.add_train_noise(net.tgt_act_net(norm_next_states_v, norm_goals_v))
+
+                target_Q1, target_Q2 = net.tgt_crt_net(norm_next_states_v, norm_goals_v, next_act_v)
+                target_Q = torch.min(target_Q1, target_Q2)
+                target_Q[dones_mask] = 0.0
+                target_Q = rewards_v.unsqueeze(dim=-1) + target_Q * self.hparams.gamma
+            critic_loss_v = F.mse_loss(current_Q1, target_Q.detach()) + F.mse_loss(current_Q2, target_Q.detach())
 
             tqdm_dict = {
                 f'{level}_critic_loss': critic_loss_v
@@ -169,13 +171,13 @@ class HER(pl.LightningModule):
 
             return critic_loss_v
 
-        else:
+        elif idx % self.hparams.policy_freq == 0:
             # train actor
             net.actor.offset.requires_grad = False
             net.actor.action_bounds.requires_grad = False
 
             cur_actions_v = net.actor(norm_states_v, norm_goals_v)
-            actor_loss_v = -net.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
+            actor_loss_v = -net.critic.Q1(norm_states_v, norm_goals_v, cur_actions_v).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
@@ -183,6 +185,8 @@ class HER(pl.LightningModule):
             self.log_dict(tqdm_dict, prog_bar=True, on_step=True)
 
             return actor_loss_v
+
+        return None
 
     def validation_step(self, batch, batch_idx):
         self.log_dict(batch, prog_bar=False)

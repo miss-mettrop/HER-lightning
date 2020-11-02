@@ -36,8 +36,8 @@ def get_env_boundaries():
     state_bounds_np = np.array([0.203, 0.1615, 0.1325, .02])
     state_offset_np = np.array([-0.018, 0.1885, -0.5975, .02])
     state_offset = torch.FloatTensor(state_offset_np.reshape(1, -1))
-    state_clip_low = np.array([-0.221, 0.027, -0.730, 0.])
-    state_clip_high = np.array([0.185, 0.35, -0.465, 0.04])
+    state_clip_low = np.array([[-0.221, 0.027, -0.730, 0.]])
+    state_clip_high = np.array([[0.185, 0.35, -0.465, 0.04]])
     state_bounds = torch.FloatTensor(state_bounds_np.reshape(1, -1))
 
     return (action_offset, action_bounds, action_clip_low, action_clip_high), (
