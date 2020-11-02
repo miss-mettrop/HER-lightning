@@ -212,7 +212,7 @@ class Worker:
 
                 new_done = done
                 if new_reward == 0 and level == 1:
-                    new_reward = True
+                    new_done = True
 
                 new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
                                      reward=new_reward, done=new_done, goal=final_o['achieved_goal'])
