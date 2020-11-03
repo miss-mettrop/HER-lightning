@@ -127,7 +127,7 @@ class Worker:
                 target_reached = (True if r == 0 else False) or target_reached
 
                 # test whether done should be set to True when target achieved or on last H loop
-                episode_low_transitions.append((low_obs, action, r, new_low_obs, done))
+                episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
 
                 obs = new_obs
 
@@ -148,9 +148,9 @@ class Worker:
 
 
             if info['is_success']:
-                episode_high_transitions.append((high_obs, high_action, 0, new_obs, True))
+                episode_high_transitions.append((high_obs, high_action, 0, new_obs, False))
             else:
-                episode_high_transitions.append((high_obs, high_action, -1, new_obs, done))
+                episode_high_transitions.append((high_obs, high_action, -1, new_obs, False))
 
             if done:
                 accuracy[1].append(1 if goal_reached else 0)
@@ -204,19 +204,19 @@ class Worker:
 
                 # check for rewarding random movements when the object hasn't moved
                 # if high level is on goal, the reward would come from the env
-                if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
-                        and self.env.env._is_success(obs['achieved_goal'], final_o['achieved_goal']):
-                    continue
+                # if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
+                #         and self.env.env._is_success(obs['achieved_goal'], final_o['achieved_goal']):
+                #     continue
 
                 new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                      desired_goal=final_o['achieved_goal'], info=info)
 
-                new_done = done
-                if new_reward == 0 and level == 1:
-                    new_done = True
+                # new_done = done
+                # if new_reward == 0 and level == 1:
+                #     new_done = True
 
                 new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                     reward=new_reward, done=new_done, goal=final_o['achieved_goal'])
+                                     reward=new_reward, done=False, goal=final_o['achieved_goal'])
 
                 transitions.append(new_exp)
 
@@ -244,12 +244,12 @@ class Worker:
                         new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                              desired_goal=future_o['achieved_goal'], info=info)
 
-                        new_done = done
-                        if new_reward == 0 and level == 1:
-                            new_done = True
+                        # new_done = done
+                        # if new_reward == 0 and level == 1:
+                        #     new_done = True
 
                         new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                             reward=new_reward, done=new_done, goal=future_o['achieved_goal'])
+                                             reward=new_reward, done=False, goal=future_o['achieved_goal'])
                         transitions.append(new_exp)
 
         if len(transitions) > 1:
