@@ -1,3 +1,4 @@
+import argparse
 from multiprocessing import Manager, Lock
 
 import numpy as np
@@ -31,6 +32,9 @@ class SpawnCallback(Callback):
 class HER(pl.LightningModule):
     def __init__(self, hparams):
         super(HER, self).__init__()
+
+        if isinstance(hparams, dict):
+            hparams = argparse.Namespace(**hparams)
 
         self.hparams = hparams
         self.save_hyperparameters(hparams)
@@ -116,9 +120,6 @@ class HER(pl.LightningModule):
 
     def training_step(self, batch, batch_idx, optimizer_idx):
         idx = batch_idx // 2
-        if optimizer_idx == 0 and idx % self.hparams.policy_freq == 0:
-            self.high_model.alpha_sync(self.hparams.polyak)
-            self.low_model.alpha_sync(self.hparams.polyak)
 
         # log this once per train step
         if optimizer_idx == 3:
@@ -186,6 +187,8 @@ class HER(pl.LightningModule):
                 f'{level}_actor_loss': actor_loss_v
             }
             self.log_dict(tqdm_dict, prog_bar=True, on_step=True)
+
+            net.alpha_sync(self.hparams.polyak)
 
             return actor_loss_v
 

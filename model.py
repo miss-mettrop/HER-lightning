@@ -118,14 +118,9 @@ class TD3(nn.Module):
     def alpha_sync(self, alpha):
         assert isinstance(alpha, float)
         assert 0.0 < alpha <= 1.0
-        state = self.actor.state_dict()
-        tgt_state = self.tgt_act_net.state_dict()
-        for k, v in state.items():
-            tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
-        self.tgt_act_net.load_state_dict(tgt_state)
 
-        state = self.critic.state_dict()
-        tgt_state = self.tgt_crt_net.state_dict()
-        for k, v in state.items():
-            tgt_state[k] = tgt_state[k] * alpha + (1 - alpha) * v
-        self.tgt_crt_net.load_state_dict(tgt_state)
+        for param, target_param in zip(self.critic.parameters(), self.tgt_crt_net.parameters()):
+            target_param.data.copy_((1 - alpha) * param.data + alpha * target_param.data)
+
+        for param, target_param in zip(self.actor.parameters(), self.tgt_act_net.parameters()):
+            target_param.data.copy_((1 - alpha) * param.data + alpha * target_param.data)
