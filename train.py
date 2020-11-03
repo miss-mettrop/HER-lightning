@@ -33,6 +33,7 @@ class HER(pl.LightningModule):
         super(HER, self).__init__()
 
         self.hparams = hparams
+        self.save_hyperparameters(hparams)
 
         self.test_env = make_env(hparams, render=self.hparams.render_test)
         sample_obs = self.test_env.observation_space['observation'].sample()
