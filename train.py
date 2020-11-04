@@ -161,6 +161,8 @@ class HER(pl.LightningModule):
                     norm_next_states_v, norm_goals_v, next_act_v)
                 q_next_v[dones_mask] = 0.0
                 q_ref_v = rewards_v.unsqueeze(dim=-1) + q_next_v * self.hparams.gamma
+                clip_return = 1 / (1 - self.hparams.gamma)
+                q_ref_v = torch.clamp(q_ref_v, -clip_return, 0)
             critic_loss_v = F.mse_loss(q_v, q_ref_v.detach())
 
             tqdm_dict = {

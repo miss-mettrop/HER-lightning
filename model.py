@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 
-HID_SIZE = 64
+HID_SIZE = 128
 
 
 class Actor(nn.Module):
@@ -43,14 +43,14 @@ class Critic(nn.Module):
             nn.Linear(HID_SIZE, HID_SIZE),
             nn.ReLU(),
             nn.Linear(HID_SIZE, 1),
-            nn.Sigmoid()
+            # nn.Sigmoid()
         )
 
         self.H = nn.Parameter(torch.tensor(H, dtype=torch.float32, requires_grad=False), requires_grad=False)
 
     def forward(self, state, goal, action):
-        return -self.net(torch.cat([state, goal, action], dim=1)) * self.H
-
+        # return -self.net(torch.cat([state, goal, action], dim=1)) * self.H
+        return self.net(torch.cat([state, goal, action], dim=1))
 
 class Agent():
     def __init__(self, net, action_clips, random_eps, noise_eps):
