@@ -3,7 +3,6 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch import optim
 
 HID_SIZE = 128
@@ -29,7 +28,7 @@ class Actor(nn.Module):
 
     def forward(self, state, goal, return_logits=False):
         o = self.net(torch.cat([state, goal], dim=1))
-        mo = F.tanh(o) * self.action_bounds + self.offset
+        mo = torch.tanh(o) * self.action_bounds + self.offset
         if not return_logits:
             return mo
         else:
