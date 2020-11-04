@@ -71,18 +71,23 @@ class Critic(nn.Module):
 
 
 class Agent():
-    def __init__(self, net, action_clips, expl_noise, policy_noise, noise_clip):
+    def __init__(self, net, action_clips, expl_noise, policy_noise, noise_clip, random_eps):
         self.net = net
         self.expl_noise = expl_noise
         self.max_action = abs(action_clips[1] - action_clips[0])
         self.policy_noise = policy_noise * self.max_action
         self.noise_clip = noise_clip * self.max_action
         self.action_clips = action_clips
+        self.random_eps = random_eps
 
 
     def __call__(self, states, goals):
         mu_v = self.net(states, goals)
         actions = mu_v.data.detach().cpu().numpy()
+
+        for i in range(len(actions)):
+            if np.random.random() < self.random_eps:
+                actions[i] = np.random.uniform(self.action_clips[0], self.action_clips[1])
 
         actions += np.random.normal(0, self.max_action * self.expl_noise, size=actions.shape)
         actions = np.clip(actions, self.action_clips[0], self.action_clips[1])
