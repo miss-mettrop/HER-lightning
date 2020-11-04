@@ -33,6 +33,7 @@ class HER(pl.LightningModule):
         super(HER, self).__init__()
 
         self.hparams = hparams
+        self.save_hyperparameters(hparams)
 
         self.test_env = make_env(hparams, render=self.hparams.render_test)
         sample_obs = self.test_env.observation_space['observation'].sample()
@@ -176,6 +177,7 @@ class HER(pl.LightningModule):
 
             cur_actions_v = net.actor(norm_states_v, norm_goals_v)
             actor_loss_v = -net.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
+            actor_loss_v += self.hparams.action_l2 * ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v

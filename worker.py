@@ -106,8 +106,7 @@ class Worker:
                 low_obs = {
                     'observation': obs['observation'][LOW_STATE_IDX],
                     'achieved_goal': obs['observation'][LOW_STATE_IDX],
-                    'desired_goal': target_np,
-                    'is_grasping': self.env.is_gripper_grasping()
+                    'desired_goal': target_np
                 }
                 new_low_obs = {
                     'observation': new_obs['observation'][LOW_STATE_IDX],
@@ -116,10 +115,6 @@ class Worker:
                 }
 
                 low_level_thresholds = np.append(self.env.thresholds, 0.003)
-                # if target requires grasping
-                if target_np[-1] < 0.02:
-                    if self.env.is_gripper_grasping():
-                        low_level_thresholds[-1] = 1
 
                 r = self.env.compute_reward(achieved_goal=low_obs['achieved_goal'],
                                             desired_goal=low_obs['desired_goal'],
@@ -140,7 +135,7 @@ class Worker:
             if not target_reached:
                 # if is_subgoal_test:
                 #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
+                #                reward=-self.params.H, done=False, goal=high_obs['desired_goal'])
                 #     self.replay_buffers[1].append(exp)
                 high_action = low_obs['achieved_goal'].copy()
             else:
@@ -187,25 +182,22 @@ class Worker:
         episode_obs = np.array(episode_transitions)
         for idx, (obs, action, reward, new_obs, done) in enumerate(episode_obs):
             exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'], reward=reward,
-                             done=done, goal=obs['desired_goal'])
+                             done=False, goal=obs['desired_goal'])
             self.replay_buffers[level].append(exp)
 
             if self.params.replay_strategy == 'final':
                 final_o = episode_obs[-1][0]
 
                 if level == 0:
-                    if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
-                        info = {'thresholds': np.append(self.env.thresholds, 1)}
-                    else:
-                        info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                    info = {'thresholds': np.append(self.env.thresholds, 0.003)}
                 else:
                     info = None
 
                 # check for rewarding random movements when the object hasn't moved
                 # if high level is on goal, the reward would come from the env
-                if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
-                        and self.env.env._is_success(obs['achieved_goal'], final_o['achieved_goal']):
-                    continue
+                # if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
+                #         and self.env.env._is_success(obs['achieved_goal'], final_o['achieved_goal']):
+                #     continue
 
                 new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                      desired_goal=final_o['achieved_goal'], info=info)
@@ -215,7 +207,7 @@ class Worker:
                     new_done = True
 
                 new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                     reward=new_reward, done=new_done, goal=final_o['achieved_goal'])
+                                     reward=new_reward, done=False, goal=final_o['achieved_goal'])
 
                 self.replay_buffers[level].append(new_exp)
 
@@ -227,21 +219,18 @@ class Worker:
 
                     for future_o in episode_obs[future_idx][:, 0]:
                         if level == 0:
-                            if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
-                                info = {'thresholds': np.append(self.env.thresholds, 1)}
-                            else:
-                                info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                            info = {'thresholds': np.append(self.env.thresholds, 0.003)}
                         else:
                             info = None
 
                         # check for rewarding random movements when the object hasn't moved
                         # if high level is on goal, the reward would come from the env
-                        if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
-                                and self.env.env._is_success(obs['achieved_goal'], future_o['achieved_goal']):
-                            continue
+                        # if level == 1 and self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) \
+                        #         and self.env.env._is_success(obs['achieved_goal'], future_o['achieved_goal']):
+                        #     continue
 
                         new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
                                                              desired_goal=future_o['achieved_goal'], info=info)
                         new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
-                                             reward=new_reward, done=done, goal=future_o['achieved_goal'])
+                                             reward=new_reward, done=False, goal=future_o['achieved_goal'])
                         self.replay_buffers[level].append(new_exp)

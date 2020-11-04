@@ -58,6 +58,7 @@ class Agent():
         self.random_eps = random_eps
         self.noise_eps = noise_eps
         self.action_clips = action_clips
+        self.max_action = abs(action_clips[1] - action_clips[0])
 
     def __call__(self, states, goals):
         mu_v = self.net(states, goals)
@@ -67,10 +68,7 @@ class Agent():
             if np.random.random() < self.random_eps:
                 actions[i] = np.random.uniform(self.action_clips[0], self.action_clips[1])
 
-        action_distribution_mean = (self.action_clips[0] + self.action_clips[1]) / 2
-        action_deviation = self.action_clips[1] - action_distribution_mean
-        action_standard_deviation = action_deviation * 68 / 100
-        actions += self.noise_eps * np.random.normal(action_distribution_mean, action_standard_deviation)
+        actions += np.random.normal(0, self.max_action * self.noise_eps, size=actions.shape)
         actions = np.clip(actions, self.action_clips[0], self.action_clips[1])
         return actions
 
