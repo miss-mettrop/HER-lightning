@@ -3,6 +3,7 @@ from copy import deepcopy
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import optim
 
 HID_SIZE = 128
@@ -20,15 +21,19 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(HID_SIZE, HID_SIZE),
             nn.ReLU(),
-            nn.Linear(HID_SIZE, act_size),
-            nn.Tanh()
+            nn.Linear(HID_SIZE, act_size)
         )
 
         self.action_bounds = nn.Parameter(action_bounds, requires_grad=False)
         self.offset = nn.Parameter(offset, requires_grad=False)
 
-    def forward(self, state, goal):
-        return (self.net(torch.cat([state, goal], dim=1)) * self.action_bounds) + self.offset
+    def forward(self, state, goal, return_logits=False):
+        o = self.net(torch.cat([state, goal], dim=1))
+        mo = F.tanh(o) * self.action_bounds + self.offset
+        if not return_logits:
+            return mo
+        else:
+            return mo, o
 
 
 class Critic(nn.Module):
@@ -114,7 +119,7 @@ class TD3(nn.Module):
         super().__init__()
         self.actor = Actor(obs_size, goal_size, act_size, action_bounds, action_offset)
         self.critic = Critic(obs_size, goal_size, act_size, params.H)
-        self.agent = Agent(self.actor, action_clips, params.expl_noise, params.noise_eps, params.noise_clip)
+        self.agent = Agent(self.actor, action_clips, params.expl_noise, params.noise_eps, params.noise_clip, params.random_eps)
         self.tgt_act_net = deepcopy(self.actor)
         self.tgt_crt_net = deepcopy(self.critic)
         self.act_opt = optim.Adam(self.actor.parameters(), lr=lr)
