@@ -105,15 +105,15 @@ class Agent():
 
 
 class TD3(nn.Module):
-    def __init__(self, params, obs_size, goal_size, act_size, action_clips, action_bounds, action_offset):
+    def __init__(self, params, obs_size, goal_size, act_size, action_clips, action_bounds, action_offset, lr):
         super().__init__()
         self.actor = Actor(obs_size, goal_size, act_size, action_bounds, action_offset)
         self.critic = Critic(obs_size, goal_size, act_size, params.H)
         self.agent = Agent(self.actor, action_clips, params.expl_noise, params.noise_eps, params.noise_clip)
         self.tgt_act_net = deepcopy(self.actor)
         self.tgt_crt_net = deepcopy(self.critic)
-        self.act_opt = optim.Adam(self.actor.parameters(), lr=params.lr_actor)
-        self.crt_opt = optim.Adam(self.critic.parameters(), lr=params.lr_critic)
+        self.act_opt = optim.Adam(self.actor.parameters(), lr=lr)
+        self.crt_opt = optim.Adam(self.critic.parameters(), lr=lr)
 
     def alpha_sync(self, alpha):
         assert isinstance(alpha, float)

@@ -56,10 +56,10 @@ class HER(pl.LightningModule):
 
         self.high_model = TD3(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
                                action_clips=(state_clip_low, state_clip_high), action_bounds=state_bounds,
-                               action_offset=state_offset)
+                               action_offset=state_offset, lr=self.hparams.lr_high)
         self.low_model = TD3(params=self.hparams, obs_size=action_shape, goal_size=action_shape, act_size=action_shape,
                               action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
-                              action_offset=action_offset)
+                              action_offset=action_offset, lr=self.hparams.lr_low)
 
         self.high_model.actor.share_memory()
         self.high_model.critic.share_memory()
