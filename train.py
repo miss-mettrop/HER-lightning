@@ -182,6 +182,7 @@ class HER(pl.LightningModule):
 
             cur_actions_v = net.actor(norm_states_v, norm_goals_v)
             actor_loss_v = -net.critic.Q1(norm_states_v, norm_goals_v, cur_actions_v).mean()
+            actor_loss_v += ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v

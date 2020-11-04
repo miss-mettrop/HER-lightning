@@ -26,7 +26,7 @@ def get_args():
     parser.add_argument('--subgoal-testing', type=float, default=0.3, help='subgoal testing chance')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     parser.add_argument('--gamma', type=float, default=0.98, help='the discount factor')
-    parser.add_argument('--lr-high', type=float, default=1e-4, help='the learning rate of the actor')
+    parser.add_argument('--lr-high', type=float, default=1e-3, help='the learning rate of the actor')
     parser.add_argument('--lr-low', type=float, default=1e-3, help='the learning rate of the critic')
     parser.add_argument('--polyak', type=float, default=0.995, help='the average coefficient')
     parser.add_argument('--n-test-rollouts', type=int, default=1, help='the number of tests')
