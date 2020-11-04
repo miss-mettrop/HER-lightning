@@ -106,8 +106,7 @@ class Worker:
                 low_obs = {
                     'observation': obs['observation'][LOW_STATE_IDX],
                     'achieved_goal': obs['observation'][LOW_STATE_IDX],
-                    'desired_goal': target_np,
-                    'is_grasping': self.env.is_gripper_grasping()
+                    'desired_goal': target_np
                 }
                 new_low_obs = {
                     'observation': new_obs['observation'][LOW_STATE_IDX],
@@ -116,10 +115,6 @@ class Worker:
                 }
 
                 low_level_thresholds = np.append(self.env.thresholds, 0.003)
-                # if target requires grasping
-                if target_np[-1] < 0.02:
-                    if self.env.is_gripper_grasping():
-                        low_level_thresholds[-1] = 1
 
                 r = self.env.compute_reward(achieved_goal=low_obs['achieved_goal'],
                                             desired_goal=low_obs['desired_goal'],
@@ -138,10 +133,10 @@ class Worker:
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                # if is_subgoal_test:
-                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                #     self.replay_buffers[1].append(exp)
+                if is_subgoal_test:
+                    exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
+                               reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
+                    self.replay_buffers[1].append(exp)
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
@@ -195,10 +190,7 @@ class Worker:
                 final_o = episode_obs[-1][0]
 
                 if level == 0:
-                    if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
-                        info = {'thresholds': np.append(self.env.thresholds, 1)}
-                    else:
-                        info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                    info = {'thresholds': np.append(self.env.thresholds, 0.003)}
                 else:
                     info = None
 
@@ -228,10 +220,7 @@ class Worker:
 
                     for future_o in episode_obs[future_idx][:, 0]:
                         if level == 0:
-                            if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
-                                info = {'thresholds': np.append(self.env.thresholds, 1)}
-                            else:
-                                info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                            info = {'thresholds': np.append(self.env.thresholds, 0.003)}
                         else:
                             info = None
 
