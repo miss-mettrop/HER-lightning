@@ -133,10 +133,10 @@ class Worker:
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                if is_subgoal_test:
-                    exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                               reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                    self.replay_buffers[1].append(exp)
+                # if is_subgoal_test:
+                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
+                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
+                #     self.replay_buffers[1].append(exp)
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
