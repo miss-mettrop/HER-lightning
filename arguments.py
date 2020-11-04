@@ -26,14 +26,16 @@ def get_args():
     parser.add_argument('--subgoal-testing', type=float, default=0.3, help='subgoal testing chance')
     parser.add_argument('--batch-size', type=int, default=256, help='the sample batch size')
     parser.add_argument('--gamma', type=float, default=0.98, help='the discount factor')
-    parser.add_argument('--lr-high', type=float, default=1e-4, help='the learning rate of the actor')
+    parser.add_argument('--lr-high', type=float, default=1e-3, help='the learning rate of the actor')
     parser.add_argument('--lr-low', type=float, default=1e-3, help='the learning rate of the critic')
     parser.add_argument('--polyak', type=float, default=0.995, help='the average coefficient')
     parser.add_argument('--n-test-rollouts', type=int, default=1, help='the number of tests')
     parser.add_argument('--val-check-interval', type=int, default=2000, help='frequency of tests (batches)')
     parser.add_argument('--clip-range', type=float, default=5, help='the clip range for the normalizer')
     parser.add_argument('--policy-freq', type=float, default=2, help='the freq at which to update the actor compared to critic')
+    parser.add_argument('--H-freq', type=float, default=5, help='the freq at which to update H (in epochs)')
     parser.add_argument('--render-test', type=bool, default=True, help='whether the test should be rendered or not')
+    parser.add_argument('--gradient-clip-val', type=float, default=0.5, help='clip the gradient norm computed over all model parameters together')
 
     parser.add_argument('--num-sanity-val-steps', type=int, default=0, help='initial tests')
 

@@ -10,7 +10,7 @@ LOW_STATE_IDX = [0, 1, 2, 9]
 
 
 def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                    low_state_normalizer, env_goal_normalizer, log_result):
+                    low_state_normalizer, env_goal_normalizer, log_result, current_H, power):
     # limit the number of threads started by OpenMP
     os.environ['OMP_NUM_THREADS'] = "1"
 
@@ -18,24 +18,25 @@ def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, l
     for proc_idx in range(params.np):
         p_args = (
             proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-            low_state_normalizer, env_goal_normalizer, log_result)
+            low_state_normalizer, env_goal_normalizer, log_result, current_H, power)
         data_proc = mp.Process(target=process_func, args=p_args)
         data_proc.start()
         data_proc_list.append(data_proc)
 
 
 def process_func(proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                 low_state_normalizer, env_goal_normalizer, log_result):
+                 low_state_normalizer, env_goal_normalizer, log_result, current_H, power):
     env = make_env(params, proc_idx)
     w = Worker(proc_idx, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result)
+               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result, current_H)
     print(f"Spawning worker with id: {proc_idx}")
-    w.loop()
+    while power[0]:
+        w.loop()
 
 
 class Worker:
     def __init__(self, wid, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result):
+                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result, current_H):
         self.wid = wid
         self.params = params
         self.env = env
@@ -46,10 +47,10 @@ class Worker:
         self.low_state_normalizer = low_state_normalizer
         self.env_goal_normalizer = env_goal_normalizer
         self.log_result = log_result
+        self.current_H = current_H
+        self.H = current_H[0].detach().numpy().item()
 
     def loop(self):
-        assert self.params.H > 0
-
         device = next(self.high_model.actor.parameters()).device
         obs = self.env.reset()
         env_goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
@@ -61,17 +62,17 @@ class Worker:
         state_shape = self.env.observation_space['observation'].sample().shape[0]
         goal_shape = self.env.observation_space['achieved_goal'].sample().shape[0]
         action_shape = self.env.action_space.shape[0]
-        new_high_states = np.zeros((self.params.max_timesteps // self.params.H, state_shape), dtype=np.float32)
+        new_high_states = np.zeros(((self.params.max_timesteps-1) // self.H + 1, state_shape), dtype=np.float32)
         new_low_states = np.zeros((self.params.max_timesteps, action_shape), dtype=np.float32)
-        new_env_goals = np.zeros((self.params.max_timesteps // self.params.H, goal_shape), dtype=np.float32)
+        new_env_goals = np.zeros(((self.params.max_timesteps-1) // self.H + 1, goal_shape), dtype=np.float32)
         idx = 0
 
         accuracy = [[], []]
         goal_reached = False
 
         while True:
-            new_high_states[idx // self.params.H] = obs['observation']
-            new_env_goals[idx // self.params.H] = obs['achieved_goal']
+            new_high_states[idx // self.H] = obs['observation']
+            new_env_goals[idx // self.H] = obs['achieved_goal']
 
             high_obs = obs.copy()
             high_state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
@@ -87,7 +88,7 @@ class Worker:
                 is_subgoal_test = True
 
             target_reached = False
-            for i in range(self.params.H):
+            for i in range(self.H):
                 new_low_states[idx] = obs['observation'][LOW_STATE_IDX]
                 idx += 1
 
@@ -138,10 +139,10 @@ class Worker:
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                # if is_subgoal_test:
-                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                #     self.replay_buffers[1].append(exp)
+                if is_subgoal_test:
+                    exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
+                               reward=-self.H, done=True, goal=high_obs['desired_goal'])
+                    self.replay_buffers[1].append(exp)
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
@@ -175,13 +176,17 @@ class Worker:
 
                 obs = self.env.reset()
                 goal = torch.from_numpy(obs['desired_goal']).float().unsqueeze(0).to(device)
-                env_goals = torch.tensor([obs['desired_goal']] * (self.params.max_timesteps // self.params.H)).to(
+                env_goals = torch.tensor([obs['desired_goal']] * (self.params.max_timesteps // self.H)).to(
                     device)
 
                 self.env_goal_normalizer.update(env_goals)
                 self.env_goal_normalizer.recompute_stats()
 
                 norm_env_goal = self.env_goal_normalizer.normalize(goal)
+
+                if self.H != self.current_H[0]:
+                    self.H = self.current_H[0].detach().numpy().item()
+                    break
 
     def create_her_transition(self, episode_transitions, level):
         episode_obs = np.array(episode_transitions)

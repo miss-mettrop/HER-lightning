@@ -11,7 +11,7 @@ from worker import LOW_STATE_IDX
 class SharedReplayBuffer:
     def __init__(self, buffer_size: int, state_shape, action_shape, goal_shape):
         self.count = torch.tensor([0], dtype=torch.int64)
-        self.capacity = buffer_size
+        self.capacity = torch.tensor([buffer_size], dtype=torch.int64)
         self.pos = torch.tensor([0], dtype=torch.int64)
 
         self.states = torch.zeros((buffer_size, state_shape), dtype=torch.float32)
@@ -22,6 +22,7 @@ class SharedReplayBuffer:
         self.dones = torch.zeros((buffer_size,), dtype=torch.bool)
 
         self.count.share_memory_()
+        self.capacity.share_memory_()
         self.pos.share_memory_()
         self.states.share_memory_()
         self.actions.share_memory_()
@@ -42,7 +43,7 @@ class SharedReplayBuffer:
                 return [self.states[:nr], self.actions[:nr], self.next_states[:nr], self.rewards[:nr], self.dones[:nr], self.goals[:nr]]
 
         # Warning: replace=False makes random.choice O(n)
-        keys = np.random.choice(min(self.count[0], self.capacity), batch_size, replace=True)
+        keys = np.random.choice(min(self.count[0], self.capacity[0]), batch_size, replace=True)
         with self.lock:
             return (self.states[keys], self.actions[keys], self.next_states[keys], self.rewards[keys], self.dones[keys],
                     self.goals[keys])
@@ -51,7 +52,7 @@ class SharedReplayBuffer:
         assert type(sample).__name__ == 'Experience'
 
         with self.lock:
-            if self.count[0] < self.capacity:
+            if self.count[0] < self.capacity[0]:
                 self.count[0] += 1
 
             pos = self.pos[0]
@@ -62,7 +63,7 @@ class SharedReplayBuffer:
             self.dones[pos] = torch.tensor(sample.done, dtype=torch.bool)
             self.goals[pos] = torch.tensor(sample.goal, dtype=torch.float32)
 
-            self.pos[0] = (self.pos[0] + 1) % self.capacity
+            self.pos[0] = (self.pos[0] + 1) % self.capacity[0]
 
     def empty(self):
         with self.lock:
@@ -88,7 +89,7 @@ class RLDataset(IterableDataset):
 
 class TestDataset(IterableDataset):
     def __init__(self, hparams, test_env, high_model, low_model, high_state_normalizer, low_state_normalizer,
-                 env_goal_normalizer):
+                 env_goal_normalizer, current_H):
         self.hparams = hparams
         self.test_env = test_env
         self.high_model = high_model
@@ -96,6 +97,7 @@ class TestDataset(IterableDataset):
         self.high_state_normalizer = high_state_normalizer
         self.low_state_normalizer = low_state_normalizer
         self.env_goal_normalizer = env_goal_normalizer
+        self.H = current_H
 
     @torch.no_grad()
     def __iter__(self):
@@ -118,7 +120,7 @@ class TestDataset(IterableDataset):
                 target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
                 norm_target = self.low_state_normalizer.normalize(target)
 
-                for i in range(self.hparams.H):
+                for i in range(self.H[0]):
                     low_state = torch.from_numpy(obs['observation'][LOW_STATE_IDX]).float().unsqueeze(0).to(device)
                     norm_low_state = self.low_state_normalizer.normalize(low_state)
 

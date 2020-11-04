@@ -25,7 +25,8 @@ class SpawnCallback(Callback):
     def on_train_start(self, trainer, pl_module):
         spawn_processes(pl_module.hparams, pl_module.high_replay_buffer, pl_module.low_replay_buffer,
                         pl_module.high_model, pl_module.low_model, pl_module.high_state_normalizer,
-                        pl_module.low_state_normalizer, pl_module.env_goal_normalizer, pl_module.log_result)
+                        pl_module.low_state_normalizer, pl_module.env_goal_normalizer, pl_module.log_result,
+                        pl_module.current_H, pl_module.power)
         print("Finished spawning workers")
 
 
@@ -70,12 +71,25 @@ class HER(pl.LightningModule):
         self.low_state_normalizer = Normalizer(action_shape, default_clip_range=self.hparams.clip_range)
         self.env_goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
+        self.current_H = torch.tensor([1], dtype=torch.int32)
+        self.current_H.share_memory_()
+
         self.low_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, action_shape, action_shape, action_shape)
-        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // self.hparams.H, state_shape, action_shape, goal_shape)
+        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // self.current_H[0], state_shape, action_shape, goal_shape)
 
         m = Manager()
         self.lock = Lock()
         self.shared_log_list = m.list()
+
+        self.power = torch.tensor([True], dtype=torch.bool)
+        self.power.share_memory_()
+
+    def increase_H(self):
+        with self.lock:
+            self.current_H[0] = min(self.current_H[0] + 1, self.hparams.H)
+            self.high_replay_buffer.capacity[0] = self.hparams.buffer_size // self.current_H[0]
+            self.high_replay_buffer.count[0] = min(self.high_replay_buffer.count[0], self.high_replay_buffer.capacity[0])
+            self.high_replay_buffer.empty()
 
     def collate_fn(self, batch):
         return collate.default_convert(batch)
@@ -104,7 +118,7 @@ class HER(pl.LightningModule):
         testset = TestDataset(hparams=self.hparams, test_env=self.test_env, high_model=self.high_model,
                               low_model=self.low_model, high_state_normalizer=self.high_state_normalizer,
                               low_state_normalizer=self.low_state_normalizer,
-                              env_goal_normalizer=self.env_goal_normalizer)
+                              env_goal_normalizer=self.env_goal_normalizer, current_H=self.current_H)
         testloader = DataLoader(
             dataset=testset,
             batch_size=1
@@ -133,6 +147,9 @@ class HER(pl.LightningModule):
                     self.log_dict({'low_accuracy': low_accuracy}, prog_bar=True, on_step=True)
                     self.log_dict({'high_accuracy': high_accuracy}, prog_bar=True, on_step=True)
                     self.shared_log_list[:] = []
+
+            if self.current_epoch % self.hparams.H_freq == 0 and batch_idx == 0 and self.current_epoch > 0:
+                self.increase_H()
 
         states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
 
@@ -182,6 +199,7 @@ class HER(pl.LightningModule):
 
             cur_actions_v = net.actor(norm_states_v, norm_goals_v)
             actor_loss_v = -net.critic.Q1(norm_states_v, norm_goals_v, cur_actions_v).mean()
+            actor_loss_v += ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
@@ -213,4 +231,10 @@ if __name__ == '__main__':
     her = HER(hparams)
     trainer = pl.Trainer.from_argparse_args(hparams)
     trainer.callbacks.append(SpawnCallback())
-    trainer.fit(her)
+    try:
+        trainer.fit(her)
+    finally:
+        her.power[0] = False
+        her.current_H[0] = -1
+        import time
+        time.sleep(3)
