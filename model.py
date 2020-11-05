@@ -20,15 +20,19 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(HID_SIZE, HID_SIZE),
             nn.ReLU(),
-            nn.Linear(HID_SIZE, act_size),
-            nn.Tanh()
+            nn.Linear(HID_SIZE, act_size)
         )
 
         self.action_bounds = nn.Parameter(action_bounds, requires_grad=False)
         self.offset = nn.Parameter(offset, requires_grad=False)
 
-    def forward(self, state, goal):
-        return (self.net(torch.cat([state, goal], dim=1)) * self.action_bounds) + self.offset
+    def forward(self, state, goal, return_logits=False):
+        o = self.net(torch.cat([state, goal], dim=1))
+        mo = torch.tanh(o) * self.action_bounds + self.offset
+        if not return_logits:
+            return mo
+        else:
+            return mo, o
 
 
 class Critic(nn.Module):

@@ -177,9 +177,9 @@ class HER(pl.LightningModule):
             net.actor.offset.requires_grad = False
             net.actor.action_bounds.requires_grad = False
 
-            cur_actions_v = net.actor(norm_states_v, norm_goals_v)
+            cur_actions_v, logits = net.actor.forward(norm_states_v, norm_goals_v, return_logits=True)
             actor_loss_v = -net.critic(norm_states_v, norm_goals_v, cur_actions_v).mean()
-            actor_loss_v += self.hparams.action_l2 * ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
+            actor_loss_v += self.hparams.action_l2 * logits.pow(2).mean()
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
