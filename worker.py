@@ -121,13 +121,16 @@ class Worker:
                                             info={'thresholds': low_level_thresholds})
                 target_reached = (True if r == 0 else False) or target_reached
 
-                # test whether done should be set to True when target achieved or on last H loop
-                episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
+                if not info['is_success']:
+                    episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
+                else:
+                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
+                    break
+
+                if done:
+                    break
 
                 obs = new_obs
-
-                if done or info['is_success']: # or target_reached:
-                    break
 
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
