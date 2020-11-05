@@ -121,15 +121,16 @@ class Worker:
                                             info={'thresholds': low_level_thresholds})
                 target_reached = (True if r == 0 else False) or target_reached
 
+                obs = new_obs
+
                 if not info['is_success']:
                     episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
                 else:
+                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
                     break
 
                 if done:
                     break
-
-                obs = new_obs
 
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
@@ -142,7 +143,6 @@ class Worker:
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
-
 
             if info['is_success']:
                 episode_high_transitions.append((high_obs, high_action, 0, new_obs, False))
