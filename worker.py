@@ -114,7 +114,7 @@ class Worker:
                     'desired_goal': target_np
                 }
 
-                low_level_thresholds = np.append(self.env.thresholds, 0.003)
+                low_level_thresholds = np.append(self.env.thresholds, 0.01)
 
                 r = self.env.compute_reward(achieved_goal=low_obs['achieved_goal'],
                                             desired_goal=low_obs['desired_goal'],
@@ -126,7 +126,7 @@ class Worker:
                 if not info['is_success']:
                     episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
                 else:
-                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, True))
+                    # episode_low_transitions.append((low_obs, action, 0, new_low_obs, True))
                     break
 
                 if done:
@@ -192,7 +192,7 @@ class Worker:
                 final_o = episode_obs[-1][0]
 
                 if level == 0:
-                    info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                    info = {'thresholds': np.append(self.env.thresholds, 0.01)}
                 else:
                     info = None
 
@@ -222,7 +222,7 @@ class Worker:
 
                     for future_o in episode_obs[future_idx][:, 0]:
                         if level == 0:
-                            info = {'thresholds': np.append(self.env.thresholds, 0.003)}
+                            info = {'thresholds': np.append(self.env.thresholds, 0.01)}
                         else:
                             info = None
 
