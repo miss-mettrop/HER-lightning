@@ -126,7 +126,7 @@ class Worker:
                 if not info['is_success']:
                     episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
                 else:
-                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
+                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, True))
                     break
 
                 if done:
