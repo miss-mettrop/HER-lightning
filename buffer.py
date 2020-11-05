@@ -127,10 +127,10 @@ class TestDataset(IterableDataset):
 
                     total_reward += reward
 
+                    obs = new_obs
+
                     if done or info['is_success']:
                         break
-
-                    obs = new_obs
 
                 if info['is_success']:
                     if not goal_reached_this_round:
