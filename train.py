@@ -18,7 +18,7 @@ from buffer import RLDataset, SharedReplayBuffer, TestDataset
 from model import TD3
 from normalizer import Normalizer
 from utils import make_env, get_env_boundaries
-from worker import spawn_processes
+from worker import spawn_processes, LOW_STATE_IDX
 
 
 class SpawnCallback(Callback):
@@ -182,8 +182,13 @@ class HER(pl.LightningModule):
 
             cur_actions_v, logits = net.actor(norm_states_v, norm_goals_v, return_logits=True)
             actor_loss_v = -net.critic.Q1(norm_states_v, norm_goals_v, cur_actions_v).mean()
-            # actor_loss_v += self.hparams.action_l2 * ((cur_actions_v - net.actor.offset) / net.actor.action_bounds).pow(2).mean()
-            actor_loss_v += self.hparams.action_l2 * logits.pow(2).mean()
+            if level == 'low':
+                actor_loss_v += self.hparams.action_l2_low * logits.pow(2).mean()
+            else:
+                norm_targets_v = self.low_state_normalizer.normalize(cur_actions_v)
+                low_state_idx = torch.tensor(LOW_STATE_IDX, dtype=torch.int64).to(norm_targets_v.device)
+                distance_loss = self.hparams.action_l2_high * (norm_states_v[:, low_state_idx] - norm_targets_v).pow(2).mean()
+                actor_loss_v += distance_loss
 
             tqdm_dict = {
                 f'{level}_actor_loss': actor_loss_v
