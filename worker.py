@@ -60,9 +60,8 @@ class Worker:
 
         state_shape = self.env.observation_space['observation'].sample().shape[0]
         goal_shape = self.env.observation_space['achieved_goal'].sample().shape[0]
-        action_shape = self.env.action_space.shape[0]
-        new_high_states = np.zeros((self.params.max_timesteps // self.params.H, state_shape), dtype=np.float32)
-        new_low_states = np.zeros((self.params.max_timesteps, action_shape), dtype=np.float32)
+        new_states = np.zeros((self.params.max_timesteps, state_shape), dtype=np.float32)
+        new_states[0] = obs['observation']
         new_env_goals = np.zeros((self.params.max_timesteps // self.params.H, goal_shape), dtype=np.float32)
         idx = 0
 
@@ -70,7 +69,6 @@ class Worker:
         goal_reached = False
 
         while True:
-            new_high_states[idx // self.params.H] = obs['observation']
             new_env_goals[idx // self.params.H] = obs['achieved_goal']
 
             high_obs = obs.copy()
@@ -88,9 +86,6 @@ class Worker:
 
             target_reached = False
             for i in range(self.params.H):
-                new_low_states[idx] = obs['observation'][LOW_STATE_IDX]
-                idx += 1
-
                 low_state = torch.from_numpy(obs['observation'][LOW_STATE_IDX]).float().unsqueeze(0).to(device)
                 norm_low_state = self.low_state_normalizer.normalize(low_state)
 
@@ -102,6 +97,8 @@ class Worker:
 
                 new_obs, reward, done, info = self.env.step(action)
                 episode_reward += reward
+                new_states[idx] = new_obs['observation']
+                idx += 1
 
                 low_obs = {
                     'observation': obs['observation'][LOW_STATE_IDX],
@@ -141,18 +138,11 @@ class Worker:
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                # if is_subgoal_test:
-                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                #     self.replay_buffers[1].append(exp)
-                high_action = low_obs['achieved_goal'].copy()
+                high_action = self.low_state_normalizer.normalize(new_low_obs['achieved_goal'])
             else:
-                high_action = target_np.copy()
+                high_action = norm_target_np.copy()
 
-            if info['is_success']:
-                episode_high_transitions.append((high_obs, high_action, 0, new_obs, False))
-            else:
-                episode_high_transitions.append((high_obs, high_action, -1, new_obs, False))
+            episode_high_transitions.append((high_obs, high_action, reward, new_obs, False))
 
             if done:
                 accuracy[1].append(1 if goal_reached else 0)
@@ -162,9 +152,9 @@ class Worker:
                 goal_reached = False
                 accuracy = [[], []]
 
-                self.high_state_normalizer.update(new_high_states)
+                self.high_state_normalizer.update(new_states)
                 self.high_state_normalizer.recompute_stats()
-                self.low_state_normalizer.update(new_low_states)
+                self.low_state_normalizer.update(new_states[:, LOW_STATE_IDX])
                 self.low_state_normalizer.recompute_stats()
                 self.env_goal_normalizer.update(new_env_goals)
 
