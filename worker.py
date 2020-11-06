@@ -138,7 +138,8 @@ class Worker:
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                high_action = self.low_state_normalizer.normalize(new_low_obs['achieved_goal'])
+                low_achieved_goal = torch.from_numpy(new_low_obs['achieved_goal']).float().unsqueeze(0).to(device)
+                high_action = self.low_state_normalizer.normalize(low_achieved_goal)[0].detach().cpu().numpy()
             else:
                 high_action = norm_target_np.copy()
 
