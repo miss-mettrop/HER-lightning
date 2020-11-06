@@ -41,4 +41,26 @@ def get_env_boundaries():
     state_bounds = torch.FloatTensor(state_bounds_np.reshape(1, -1))
 
     return (action_offset, action_bounds, action_clip_low, action_clip_high), (
-    state_offset, state_bounds, state_clip_low, state_clip_high)
+        state_offset, state_bounds, state_clip_low, state_clip_high)
+
+
+def get_normalised_env_boundaries():
+    # low level
+    action_bounds_np = np.array([1., 1., 1., .05])
+    action_offset_np = np.array([0., 0., 0., 0.])
+    action_offset = torch.FloatTensor(action_offset_np.reshape(1, -1))
+    action_clip_low = np.array([-1.0 * action_bounds_np])
+    action_clip_high = np.array([action_bounds_np])
+    action_bounds = torch.FloatTensor(action_bounds_np.reshape(1, -1))
+
+    # high level
+    n_cr = 2.0
+    state_bounds_np = np.array([1., 1., 1., 1.])
+    state_offset_np = np.array([0., 0., 0., 0.])
+    state_offset = torch.FloatTensor(state_offset_np.reshape(1, -1))
+    state_clip_low = np.array([[-n_cr, -n_cr, -n_cr, -n_cr]])
+    state_clip_high = np.array([[n_cr, n_cr, n_cr, n_cr]])
+    state_bounds = torch.FloatTensor(state_bounds_np.reshape(1, -1))
+
+    return (action_offset, action_bounds, action_clip_low, action_clip_high), (
+        state_offset, state_bounds, state_clip_low, state_clip_high)

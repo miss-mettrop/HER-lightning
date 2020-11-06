@@ -113,16 +113,16 @@ class TestDataset(IterableDataset):
                 state = torch.from_numpy(obs['observation']).float().unsqueeze(0).to(device)
                 norm_state = self.high_state_normalizer.normalize(state)
 
-                target_np = self.high_model.agent.test(norm_state, norm_goal)[0]
+                norm_target_np = self.high_model.agent(norm_state, norm_goal)[0]
+                norm_target = torch.from_numpy(norm_target_np).float().unsqueeze(0).to(device)
+                target_np = self.low_state_normalizer.denormalize(norm_target).detach().cpu().numpy()[0]
                 self.test_env.update_markers(target_np)
-                target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
-                norm_target = self.low_state_normalizer.normalize(target)
 
                 for i in range(self.hparams.H):
                     low_state = torch.from_numpy(obs['observation'][LOW_STATE_IDX]).float().unsqueeze(0).to(device)
                     norm_low_state = self.low_state_normalizer.normalize(low_state)
 
-                    action = self.low_model.agent.test(norm_low_state, norm_target)[0]
+                    action = self.low_model.agent(norm_low_state, norm_target)[0]
                     new_obs, reward, done, info = self.test_env.step(action)
 
                     total_reward += reward

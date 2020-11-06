@@ -53,3 +53,6 @@ class Normalizer(nn.Module):
         if clip_range is None:
             clip_range = self.default_clip_range
         return torch.clamp((v - self.mean) / self.std, -clip_range, clip_range)
+
+    def denormalize(self, v):
+        return v * self.std + self.mean

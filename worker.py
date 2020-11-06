@@ -78,9 +78,9 @@ class Worker:
             norm_high_state = self.high_state_normalizer.normalize(high_state)
 
             with torch.no_grad():
-                target_np = self.high_model.agent(norm_high_state, norm_env_goal)[0]
-                target = torch.from_numpy(target_np).float().unsqueeze(0).to(device)
-            norm_target = self.low_state_normalizer.normalize(target)
+                norm_target_np = self.high_model.agent(norm_high_state, norm_env_goal)[0]
+                norm_target = torch.from_numpy(norm_target_np).float().unsqueeze(0).to(device)
+                target_np = self.low_state_normalizer.denormalize(norm_target).detach().cpu().numpy()[0]
 
             is_subgoal_test = False
             if np.random.uniform() < self.params.subgoal_testing:

@@ -17,7 +17,7 @@ from arguments import get_args
 from buffer import RLDataset, SharedReplayBuffer, TestDataset
 from model import TD3
 from normalizer import Normalizer
-from utils import make_env, get_env_boundaries
+from utils import make_env, get_normalised_env_boundaries
 from worker import spawn_processes, LOW_STATE_IDX
 
 
@@ -43,7 +43,7 @@ class HER(pl.LightningModule):
         sample_obs = self.test_env.observation_space['observation'].sample()
         sample_goal = self.test_env.observation_space['achieved_goal'].sample()
 
-        action_limits, state_limits = get_env_boundaries()
+        action_limits, state_limits = get_normalised_env_boundaries()
         action_offset, action_bounds, action_clip_low, action_clip_high = action_limits
         state_offset, state_bounds, state_clip_low, state_clip_high = state_limits
 
@@ -55,11 +55,11 @@ class HER(pl.LightningModule):
         self.ll_state_shape = action_shape
 
         self.high_model = TD3(params=self.hparams, obs_size=state_shape, goal_size=goal_shape, act_size=action_shape,
-                               action_clips=(state_clip_low, state_clip_high), action_bounds=state_bounds,
-                               action_offset=state_offset, lr=self.hparams.lr_high)
+                              action_clips=(state_clip_low, state_clip_high), action_bounds=state_bounds,
+                              action_offset=state_offset, lr=self.hparams.lr_high)
         self.low_model = TD3(params=self.hparams, obs_size=action_shape, goal_size=action_shape, act_size=action_shape,
-                              action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
-                              action_offset=action_offset, lr=self.hparams.lr_low)
+                             action_clips=(action_clip_low, action_clip_high), action_bounds=action_bounds,
+                             action_offset=action_offset, lr=self.hparams.lr_low)
 
         self.high_model.actor.share_memory()
         self.high_model.critic.share_memory()
@@ -71,7 +71,8 @@ class HER(pl.LightningModule):
         self.env_goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
         self.low_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, action_shape, action_shape, action_shape)
-        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // self.hparams.H, state_shape, action_shape, goal_shape)
+        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // self.hparams.H, state_shape,
+                                                     action_shape, goal_shape)
 
         m = Manager()
         self.lock = Lock()
@@ -185,9 +186,8 @@ class HER(pl.LightningModule):
             if level == 'low':
                 actor_loss_v += self.hparams.action_l2_low * logits.pow(2).mean()
             else:
-                norm_targets_v = self.low_state_normalizer.normalize(cur_actions_v)
-                low_state_idx = torch.tensor(LOW_STATE_IDX, dtype=torch.int64).to(norm_targets_v.device)
-                distance_loss = self.hparams.action_l2_high * (norm_states_v[:, low_state_idx] - norm_targets_v).pow(2).mean()
+                low_state_idx = torch.tensor(LOW_STATE_IDX, dtype=torch.int64).to(cur_actions_v.device)
+                distance_loss = self.hparams.action_l2_high * (norm_states_v[:, low_state_idx] - cur_actions_v).pow(2).mean()
                 actor_loss_v += distance_loss
 
             tqdm_dict = {
