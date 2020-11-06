@@ -18,7 +18,7 @@ def get_args():
     parser.add_argument('--replay-strategy', type=str, default='future', help='the HER strategy')
     parser.add_argument('--save-dir', type=str, default='saved_models/', help='the path to save the models')
     parser.add_argument('--noise-eps', type=float, default=0.1, help='Noise added to target policy during critic update')
-    parser.add_argument('--random-eps', type=float, default=0.2, help='chance of completely random action')
+    parser.add_argument('--random-eps', type=float, default=0.1, help='chance of completely random action')
     parser.add_argument('--noise-clip', type=float, default=0.3, help='Range to clip target policy noise')
     parser.add_argument('--expl-noise', type=float, default=0.05, help='Std of Gaussian exploration noise')
     parser.add_argument('--buffer-size', type=int, default=int(1e6), help='the size of the buffer')
