@@ -140,19 +140,12 @@ class Worker:
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
-            if not target_reached:
-                # if is_subgoal_test:
-                #     exp = Experience(state=high_obs['observation'], action=target_np, next_state=obs['observation'],
-                #                reward=-self.params.H, done=True, goal=high_obs['desired_goal'])
-                #     self.replay_buffers[1].append(exp)
+            if not target_reached and not info['is_success']:
                 high_action = low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
 
-            if info['is_success']:
-                episode_high_transitions.append((high_obs, high_action, 0, new_obs, False))
-            else:
-                episode_high_transitions.append((high_obs, high_action, -1, new_obs, False))
+            episode_high_transitions.append((high_obs, high_action, reward, new_obs, False))
 
             if done:
                 accuracy[1].append(1 if goal_reached else 0)
