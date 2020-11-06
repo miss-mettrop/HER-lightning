@@ -140,8 +140,8 @@ class Worker:
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
-            if not target_reached and not info['is_success']:
-                high_action = low_obs['achieved_goal'].copy()
+            if not target_reached:  # and not info['is_success']:
+                high_action = new_low_obs['achieved_goal'].copy()
             else:
                 high_action = target_np.copy()
 
