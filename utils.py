@@ -54,8 +54,8 @@ def get_normalised_env_boundaries():
     action_bounds = torch.FloatTensor(action_bounds_np.reshape(1, -1))
 
     # high level
-    n_cr = 2.0
-    state_bounds_np = np.array([1., 1., 1., 1.])
+    n_cr = 5.0
+    state_bounds_np = np.array([2., 2., 2., 2.])
     state_offset_np = np.array([0., 0., 0., 0.])
     state_offset = torch.FloatTensor(state_offset_np.reshape(1, -1))
     state_clip_low = np.array([[-n_cr, -n_cr, -n_cr, -n_cr]])
