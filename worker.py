@@ -88,7 +88,7 @@ class Worker:
             new_obs, reward, done, _ = self.env.step(action)
             episode_reward += reward
 
-            episode_transitions.append((obs, action, reward, new_obs, done))
+            episode_transitions.append((obs, action, reward, new_obs, False))
 
             obs = new_obs
 
