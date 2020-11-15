@@ -1,0 +1,44 @@
+program: train.py
+method: bayes
+metric:
+  name: test_accuracy
+  goal: maximize
+parameters:
+  lr_actor:
+    distribution: uniform
+    min: 0.0005
+    max: 0.002
+  replay_k:
+    distribution: int_uniform
+    min: 1
+    max: 4
+  lr_critic:
+    distribution: uniform
+    min: 0.0005
+    max: 0.002
+  noise_eps:
+    distribution: uniform
+    min: 0.0
+    max: 0.2
+  batch_size:
+    distribution: categorical
+    values:
+      - 64
+      - 128
+      - 256
+  expl_noise:
+    distribution: uniform
+    min: 0.0
+    max: 0.2
+  noise_clip:
+    distribution: uniform
+    min: 0.0
+    max: 0.5
+  random_eps:
+    distribution: uniform
+    min: 0.0
+    max: 0.3
+  policy_freq:
+    distribution: int_uniform
+    min: 1
+    max: 4
