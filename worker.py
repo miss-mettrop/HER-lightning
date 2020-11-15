@@ -10,7 +10,7 @@ LOW_STATE_IDX = [0, 1, 2, 9]
 
 
 def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                    low_state_normalizer, env_goal_normalizer, log_result):
+                    low_state_normalizer, env_goal_normalizer, log_result, active):
     # limit the number of threads started by OpenMP
     os.environ['OMP_NUM_THREADS'] = "1"
 
@@ -18,24 +18,25 @@ def spawn_processes(params, high_replay_buffer, low_replay_buffer, high_model, l
     for proc_idx in range(params.np):
         p_args = (
             proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-            low_state_normalizer, env_goal_normalizer, log_result)
+            low_state_normalizer, env_goal_normalizer, log_result, active)
         data_proc = mp.Process(target=process_func, args=p_args)
         data_proc.start()
         data_proc_list.append(data_proc)
 
 
 def process_func(proc_idx, params, high_replay_buffer, low_replay_buffer, high_model, low_model, high_state_normalizer,
-                 low_state_normalizer, env_goal_normalizer, log_result):
+                 low_state_normalizer, env_goal_normalizer, log_result, active):
     env = make_env(params, proc_idx)
     w = Worker(proc_idx, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result)
+               high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result, active)
     print(f"Spawning worker with id: {proc_idx}")
     w.loop()
+    print(f"De-spawning worker with id: {proc_idx}")
 
 
 class Worker:
     def __init__(self, wid, params, env, high_replay_buffer, low_replay_buffer, high_model, low_model,
-                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result):
+                 high_state_normalizer, low_state_normalizer, env_goal_normalizer, log_result, active):
         self.wid = wid
         self.params = params
         self.env = env
@@ -46,6 +47,7 @@ class Worker:
         self.low_state_normalizer = low_state_normalizer
         self.env_goal_normalizer = env_goal_normalizer
         self.log_result = log_result
+        self.active = active
 
     def loop(self):
         assert self.params.H > 0
@@ -68,7 +70,7 @@ class Worker:
         accuracy = [[], []]
         goal_reached = False
 
-        while True:
+        while self.active:
             new_env_goals[idx // self.params.H] = obs['achieved_goal']
 
             high_obs = obs.copy()

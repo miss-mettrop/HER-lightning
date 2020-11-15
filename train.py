@@ -25,7 +25,8 @@ class SpawnCallback(Callback):
     def on_train_start(self, trainer, pl_module):
         spawn_processes(pl_module.hparams, pl_module.high_replay_buffer, pl_module.low_replay_buffer,
                         pl_module.high_model, pl_module.low_model, pl_module.high_state_normalizer,
-                        pl_module.low_state_normalizer, pl_module.env_goal_normalizer, pl_module.log_result)
+                        pl_module.low_state_normalizer, pl_module.env_goal_normalizer, pl_module.log_result,
+                        pl_module.active)
         print("Finished spawning workers")
 
 
@@ -77,6 +78,9 @@ class HER(pl.LightningModule):
         m = Manager()
         self.lock = Lock()
         self.shared_log_list = m.list()
+
+        self.active = torch.BoolTensor([True])
+        self.active.share_memory_()
 
     def collate_fn(self, batch):
         return collate.default_convert(batch)
@@ -220,4 +224,11 @@ if __name__ == '__main__':
     her = HER(hparams)
     trainer = pl.Trainer.from_argparse_args(hparams)
     trainer.callbacks.append(SpawnCallback())
-    trainer.fit(her)
+    try:
+        trainer.fit(her)
+    finally:
+        her.active[0] = False
+        import time
+        time.sleep(2)
+        her.test_env.close()
+        torch.cuda.empty_cache()
