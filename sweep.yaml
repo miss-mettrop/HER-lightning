@@ -4,41 +4,48 @@ metric:
   name: test_accuracy
   goal: maximize
 parameters:
-  lr_actor:
+  lr-actor:
     distribution: uniform
     min: 0.0005
     max: 0.002
-  replay_k:
+  replay-k:
     distribution: int_uniform
     min: 1
     max: 4
-  lr_critic:
+  lr-critic:
     distribution: uniform
     min: 0.0005
     max: 0.002
-  noise_eps:
+  noise-eps:
     distribution: uniform
     min: 0.0
     max: 0.2
-  batch_size:
+  batch-size:
     distribution: categorical
     values:
-      - 64
       - 128
       - 256
-  expl_noise:
+  expl-noise:
     distribution: uniform
     min: 0.0
     max: 0.2
-  noise_clip:
+  noise-clip:
     distribution: uniform
     min: 0.0
     max: 0.5
-  random_eps:
+  random-eps:
     distribution: uniform
     min: 0.0
     max: 0.3
-  policy_freq:
+  action-l2-low:
+    distribution: uniform
+    min: 0.1
+    max: 1.5
+  action-l2-high:
+    distribution: uniform
+    min: 0.001
+    max: 0.3
+  policy-freq:
     distribution: int_uniform
     min: 1
     max: 4
