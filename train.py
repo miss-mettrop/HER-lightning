@@ -137,7 +137,11 @@ class HER(pl.LightningModule):
             return actor_loss_v
 
     def validation_step(self, batch, batch_idx):
-        self.log_dict(batch, prog_bar=True)
+        to_log = dict()
+        for k, v in batch.items():
+            to_log[k] = v.detach().cpu().numpy()
+        to_log['epoch_nr'] = int(self.current_epoch)
+        self.logger.experiment.log(to_log)
 
 
 if __name__ == '__main__':

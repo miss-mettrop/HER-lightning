@@ -106,7 +106,11 @@ class Worker:
                 future_idx = future_idx.astype(int)
 
                 for future_o in episode_obs[future_idx][:, 0]:
-                    new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'], desired_goal=future_o['achieved_goal'], info=None)
+                    # if self.env.env._is_success(obs['achieved_goal'], new_obs['achieved_goal']) and self.env.env._is_success(obs['achieved_goal'], future_o['achieved_goal']):
+                    #     continue
+
+                    new_reward = self.env.compute_reward(achieved_goal=new_obs['achieved_goal'],
+                                                         desired_goal=future_o['achieved_goal'], info=None)
                     new_exp = Experience(state=obs['observation'], action=action, next_state=new_obs['observation'],
                                          reward=new_reward, done=False, goal=future_o['achieved_goal'])
                     self.replay_buffer.append(new_exp)
