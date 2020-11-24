@@ -191,7 +191,7 @@ class Worker:
                 final_o = episode_obs[-1][0]
 
                 if level == 0:
-                    if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
+                    if final_o['achieved_goal'][-1] < 0.02 and obs['is_grasping']:
                         info = {'thresholds': np.append(self.env.thresholds, 1)}
                     else:
                         info = {'thresholds': np.append(self.env.thresholds, 0.01)}
@@ -224,7 +224,7 @@ class Worker:
 
                     for future_o in episode_obs[future_idx][:, 0]:
                         if level == 0:
-                            if obs['desired_goal'][-1] < 0.04 and obs['is_grasping']:
+                            if future_o['achieved_goal'][-1] < 0.04 and obs['is_grasping']:
                                 info = {'thresholds': np.append(self.env.thresholds, 1)}
                             else:
                                 info = {'thresholds': np.append(self.env.thresholds, 0.01)}
