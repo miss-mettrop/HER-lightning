@@ -134,7 +134,7 @@ class Worker:
                 #     episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
                 #     break
 
-                if done or info['is_success']:
+                if done or info['is_success'] or target_reached:
                     break
 
             accuracy[0].append(1 if target_reached else 0)
