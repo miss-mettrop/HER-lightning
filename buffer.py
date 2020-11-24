@@ -129,17 +129,17 @@ class TestDataset(IterableDataset):
 
                     obs = new_obs
 
-                    low_level_thresholds = np.append(self.test_env.thresholds, 0.01)
-                    # if target requires grasping
-                    if target_np[-1] < 0.04:
-                        if self.test_env.is_gripper_grasping():
-                            low_level_thresholds[-1] = 1
-                    r = self.test_env.compute_reward(achieved_goal=obs['observation'][LOW_STATE_IDX],
-                                            desired_goal=target_np,
-                                            info={'thresholds': low_level_thresholds})
-                    target_reached = True if r == 0 else False
+                    # low_level_thresholds = np.append(self.test_env.thresholds, 0.01)
+                    # # if target requires grasping
+                    # if target_np[-1] < 0.04:
+                    #     if self.test_env.is_gripper_grasping():
+                    #         low_level_thresholds[-1] = 1
+                    # r = self.test_env.compute_reward(achieved_goal=obs['observation'][LOW_STATE_IDX],
+                    #                         desired_goal=target_np,
+                    #                         info={'thresholds': low_level_thresholds})
+                    # target_reached = True if r == 0 else False
 
-                    if done or info['is_success'] or target_reached:
+                    if done or info['is_success']: # or target_reached:
                         break
 
                 if info['is_success']:

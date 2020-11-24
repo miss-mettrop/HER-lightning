@@ -134,17 +134,17 @@ class Worker:
                 #     episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
                 #     break
 
-                if done or info['is_success'] or target_reached:
+                if done or info['is_success']: # or target_reached:
                     break
 
             accuracy[0].append(1 if target_reached else 0)
             goal_reached = (True if info['is_success'] else False) or goal_reached
 
             if not target_reached:
-                if is_subgoal_test:
-                    exp = Experience(state=high_obs['observation'], action=norm_target_np.copy(), next_state=new_obs['observation'],
-                                     reward=-1, done=False, goal=high_obs['desired_goal'])
-                    self.replay_buffers[1].append(exp)
+                # if is_subgoal_test:
+                #     exp = Experience(state=high_obs['observation'], action=norm_target_np.copy(), next_state=new_obs['observation'],
+                #                      reward=-1, done=False, goal=high_obs['desired_goal'])
+                #     self.replay_buffers[1].append(exp)
 
                 low_achieved_goal = torch.from_numpy(new_low_obs['achieved_goal']).float().unsqueeze(0).to(device)
                 high_action = self.low_state_normalizer.normalize(low_achieved_goal)[0].detach().cpu().numpy()
