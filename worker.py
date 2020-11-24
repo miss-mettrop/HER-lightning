@@ -127,13 +127,14 @@ class Worker:
 
                 obs = new_obs
 
-                if not info['is_success']:
-                    episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
-                else:
-                    episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
-                    break
+                episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
+                # if not info['is_success']:
+                #     episode_low_transitions.append((low_obs, action, r, new_low_obs, False))
+                # else:
+                #     episode_low_transitions.append((low_obs, action, 0, new_low_obs, False))
+                #     break
 
-                if done:
+                if done or info['is_success']:
                     break
 
             accuracy[0].append(1 if target_reached else 0)
