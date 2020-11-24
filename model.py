@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 
-HID_SIZE = 128
+HID_SIZE = 256
 
 
 class Actor(nn.Module):

@@ -116,7 +116,7 @@ class Worker:
 
                 low_level_thresholds = np.append(self.env.thresholds, 0.01)
                 # if target requires grasping
-                if target_np[-1] < 0.02:
+                if target_np[-1] < 0.04:
                     if self.env.is_gripper_grasping():
                         low_level_thresholds[-1] = 1
 
@@ -224,7 +224,7 @@ class Worker:
 
                     for future_o in episode_obs[future_idx][:, 0]:
                         if level == 0:
-                            if obs['desired_goal'][-1] < 0.02 and obs['is_grasping']:
+                            if obs['desired_goal'][-1] < 0.04 and obs['is_grasping']:
                                 info = {'thresholds': np.append(self.env.thresholds, 1)}
                             else:
                                 info = {'thresholds': np.append(self.env.thresholds, 0.01)}
