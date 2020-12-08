@@ -148,6 +148,10 @@ class Worker:
                 #                      reward=-1, done=False, goal=high_obs['desired_goal'])
                 #     self.replay_buffers[1].append(exp)
 
+                exp = Experience(state=high_obs['observation'], action=norm_target_np.copy(), next_state=new_obs['observation'],
+                                 reward=reward, gamma=np.power(self.params.gamma, low_steps), goal=high_obs['desired_goal'])
+                self.replay_buffers[1].append(exp)
+
                 low_achieved_goal = torch.from_numpy(new_low_obs['achieved_goal']).float().unsqueeze(0).to(device)
                 high_action = self.low_state_normalizer.normalize(low_achieved_goal)[0].detach().cpu().numpy()
             else:

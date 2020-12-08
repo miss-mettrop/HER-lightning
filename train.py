@@ -72,7 +72,7 @@ class HER(pl.LightningModule):
         self.env_goal_normalizer = Normalizer(goal_shape, default_clip_range=self.hparams.clip_range)
 
         self.low_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size, action_shape, action_shape, action_shape)
-        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // self.hparams.H, state_shape,
+        self.high_replay_buffer = SharedReplayBuffer(self.hparams.buffer_size // 2, state_shape,
                                                      action_shape, goal_shape)
 
         m = Manager()
