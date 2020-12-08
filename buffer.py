@@ -19,7 +19,7 @@ class SharedReplayBuffer:
         self.goals = torch.zeros((buffer_size, goal_shape), dtype=torch.float32)
         self.actions = torch.zeros((buffer_size, action_shape), dtype=torch.float32)
         self.rewards = torch.zeros((buffer_size,), dtype=torch.int8)
-        self.dones = torch.zeros((buffer_size,), dtype=torch.bool)
+        self.gammas = torch.zeros((buffer_size,), dtype=torch.bool)
 
         self.count.share_memory_()
         self.pos.share_memory_()
@@ -27,7 +27,7 @@ class SharedReplayBuffer:
         self.actions.share_memory_()
         self.next_states.share_memory_()
         self.rewards.share_memory_()
-        self.dones.share_memory_()
+        self.gammas.share_memory_()
         self.goals.share_memory_()
 
         self.lock = mp.Lock()
@@ -39,12 +39,12 @@ class SharedReplayBuffer:
         if self.count[0] <= batch_size:
             with self.lock:
                 nr = self.count[0]
-                return [self.states[:nr], self.actions[:nr], self.next_states[:nr], self.rewards[:nr], self.dones[:nr], self.goals[:nr]]
+                return [self.states[:nr], self.actions[:nr], self.next_states[:nr], self.rewards[:nr], self.gammas[:nr], self.goals[:nr]]
 
         # Warning: replace=False makes random.choice O(n)
         keys = np.random.choice(min(self.count[0], self.capacity), batch_size, replace=True)
         with self.lock:
-            return (self.states[keys], self.actions[keys], self.next_states[keys], self.rewards[keys], self.dones[keys],
+            return (self.states[keys], self.actions[keys], self.next_states[keys], self.rewards[keys], self.gammas[keys],
                     self.goals[keys])
 
     def append(self, sample):
@@ -59,7 +59,7 @@ class SharedReplayBuffer:
             self.actions[pos] = torch.tensor(sample.action, dtype=torch.float32)
             self.next_states[pos] = torch.tensor(sample.next_state, dtype=torch.float32)
             self.rewards[pos] = torch.tensor(sample.reward, dtype=torch.int8)
-            self.dones[pos] = torch.tensor(sample.done, dtype=torch.bool)
+            self.gammas[pos] = torch.tensor(sample.gamma, dtype=torch.bool)
             self.goals[pos] = torch.tensor(sample.goal, dtype=torch.float32)
 
             self.pos[0] = (self.pos[0] + 1) % self.capacity
@@ -129,17 +129,17 @@ class TestDataset(IterableDataset):
 
                     obs = new_obs
 
-                    # low_level_thresholds = np.append(self.test_env.thresholds, 0.01)
-                    # # if target requires grasping
-                    # if target_np[-1] < 0.04:
-                    #     if self.test_env.is_gripper_grasping():
-                    #         low_level_thresholds[-1] = 1
-                    # r = self.test_env.compute_reward(achieved_goal=obs['observation'][LOW_STATE_IDX],
-                    #                         desired_goal=target_np,
-                    #                         info={'thresholds': low_level_thresholds})
-                    # target_reached = True if r == 0 else False
+                    low_level_thresholds = np.array([0.01, 0.01, 0.01, 0.01])
+                    # if target requires grasping
+                    if target_np[-1] < 0.04:
+                        if self.test_env.is_gripper_grasping():
+                            low_level_thresholds[-1] = 1
+                    r = self.test_env.compute_reward(achieved_goal=obs['observation'][LOW_STATE_IDX],
+                                            desired_goal=target_np,
+                                            info={'thresholds': low_level_thresholds})
+                    target_reached = True if r == 0 else False
 
-                    if done or info['is_success']: # or target_reached:
+                    if done or info['is_success'] or target_reached:
                         break
 
                 if info['is_success']:

@@ -139,7 +139,7 @@ class HER(pl.LightningModule):
                     self.log_dict({'high_accuracy': high_accuracy}, prog_bar=True, on_step=True)
                     self.shared_log_list[:] = []
 
-        states_v, actions_v, next_states_v, rewards_v, dones_mask, goals_v = batch[0]
+        states_v, actions_v, next_states_v, rewards_v, gammas_v, goals_v = batch[0]
 
         if states_v.shape[1] == self.hl_state_shape and optimizer_idx in [0, 1]:
             net = self.high_model
@@ -167,8 +167,7 @@ class HER(pl.LightningModule):
 
                 target_Q1, target_Q2 = net.tgt_crt_net(norm_next_states_v, norm_goals_v, next_act_v)
                 target_Q = torch.min(target_Q1, target_Q2)
-                target_Q[dones_mask] = 0.0
-                target_Q = rewards_v.unsqueeze(dim=-1) + target_Q * self.hparams.gamma
+                target_Q = rewards_v.unsqueeze(dim=-1) + target_Q * gammas_v.unsqueeze(dim=-1)
                 clip_return = 1 / (1 - self.hparams.gamma)
                 target_Q = torch.clamp(target_Q, -clip_return, 0)
             critic_loss_v = F.mse_loss(current_Q1, target_Q.detach()) + F.mse_loss(current_Q2, target_Q.detach())

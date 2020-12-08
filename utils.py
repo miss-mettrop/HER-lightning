@@ -6,7 +6,7 @@ from recordtype import recordtype
 
 from FetchBulletEnv import FetchBulletEnv
 
-Experience = recordtype('Experience', 'state action next_state reward done goal', default=None)
+Experience = recordtype('Experience', 'state action next_state reward gamma goal', default=None)
 
 
 def make_env(params, worker_id=-1, render=False):
