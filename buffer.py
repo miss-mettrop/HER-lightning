@@ -106,7 +106,7 @@ class TestDataset(IterableDataset):
 
                 action = self.model.agent.test(norm_state, norm_goal)[0]
 
-                new_obs, reward, done, info = self.test_env.BlueStep(action)
+                new_obs, reward, done, info = self.test_env.step(action)
 
                 total_reward += reward
 

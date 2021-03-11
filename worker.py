@@ -85,7 +85,7 @@ class Worker:
             with torch.no_grad():
                 action = self.model.agent(norm_state, norm_goal)[0]
 
-            new_obs, reward, done, _ = self.env.BlueStep(action)
+            new_obs, reward, done, _ = self.env.step(action)
             episode_reward += reward
 
             episode_transitions.append((obs, action, reward, new_obs, False))
