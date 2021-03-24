@@ -24,8 +24,8 @@ def make_env(params, worker_id=-1, render=False):
 
 
 def get_env_boundaries():
-    action_bounds_np = np.array([1., 1., 1., .05])
-    action_offset_np = np.array([0., 0., 0., 0.])
+    action_bounds_np = np.array([1., 1., 1., .05, 1., 1., 1., .05])
+    action_offset_np = np.array([0., 0., 0., 0., 0., 0., 0., 0.])
     action_offset = torch.FloatTensor(action_offset_np.reshape(1, -1))
     action_clip_low = np.array([-1.0 * action_bounds_np])
     action_clip_high = np.array([action_bounds_np])
